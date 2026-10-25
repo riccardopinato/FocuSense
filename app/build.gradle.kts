@@ -17,7 +17,7 @@ val hasReleaseSigning = listOf(
 
 android {
     namespace = "com.utilitylab.focussense"
-    compileSdk = 36
+    compileSdk = 37
 
     defaultConfig {
         applicationId = "com.utilitylab.focussense"
