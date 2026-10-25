@@ -8,6 +8,18 @@ enum class ProgressBadge(
         "Prima sessione",
         "Completa una sessione valida di almeno 10 minuti."
     ),
+    FIRST_CORE(
+        "Primo Core",
+        "Porta a termine una sessione e crea il tuo primo Focus Core."
+    ),
+    PRISM_CORE(
+        "Prism",
+        "Completa una sessione con Focus Integrity almeno 97%."
+    ),
+    DEEP_FOCUS(
+        "Deep Focus",
+        "Accumula almeno 30 minuti a schermo spento durante una sessione."
+    ),
     THREE_DAY_STREAK(
         "Tre giorni di costanza",
         "Mantieni una serie di 3 giorni attivi."
@@ -19,6 +31,10 @@ enum class ProgressBadge(
     TEN_SESSIONS(
         "10 sessioni",
         "Completa 10 sessioni valide."
+    ),
+    TEN_CORES(
+        "10 Focus Core",
+        "Costruisci 10 Core completando sessioni di concentrazione."
     ),
     FIFTY_SESSIONS(
         "50 sessioni",
@@ -81,6 +97,7 @@ data class LevelProgress(
 data class GamificationProgress(
     val validSessions: Int = 0,
     val totalValidMinutes: Int = 0,
+    val totalCores: Int = 0,
     val currentStreak: Int = 0,
     val bestStreak: Int = 0,
     val level: LevelProgress = LevelProgress(),
