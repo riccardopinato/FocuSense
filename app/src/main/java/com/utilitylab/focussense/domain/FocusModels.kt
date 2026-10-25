@@ -66,7 +66,7 @@ data class FocusScoreBreakdown(
 )
 
 data class SessionSummary(
-    val focusScore: Int,
+    val environmentScore: Int,
     val avgNoiseDbfs: Float,
     val noiseStdDev: Float,
     val avgLightLux: Float,
