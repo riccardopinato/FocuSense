@@ -10,6 +10,7 @@ import androidx.compose.ui.unit.dp
 import com.utilitylab.focussense.domain.ProgressBadge
 import com.utilitylab.focussense.ui.theme.FocuSenseGreen
 import com.utilitylab.focussense.ui.theme.FocuSenseOutline
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 
 @Composable
@@ -35,7 +36,7 @@ fun BadgesGrid(
                 Text(
                     badge.title,
                     style = MaterialTheme.typography.titleMedium,
-                    color = if (isUnlocked) FocuSenseGreen else MaterialTheme.colorScheme.onSurface
+                    color = if (isUnlocked) FocuSenseGreen else FocuSenseText
                 )
                 Text(
                     badge.description,
