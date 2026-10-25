@@ -9,6 +9,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.utilitylab.focussense.domain.SessionContext
 import com.utilitylab.focussense.domain.SessionTagCodec
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -26,10 +27,10 @@ fun SessionSetupDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Nuova sessione") },
+        title = { Text("Nuova sessione", color = FocuSenseText) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                Text("Durata", style = MaterialTheme.typography.titleSmall)
+                Text("Durata", style = MaterialTheme.typography.titleSmall, color = FocuSenseText)
                 LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     items(listOf(15, 25, 45, 60, 90)) { value ->
                         FilterChip(
@@ -40,7 +41,7 @@ fun SessionSetupDialog(
                     }
                 }
 
-                Text("Contesto", style = MaterialTheme.typography.titleSmall)
+                Text("Contesto", style = MaterialTheme.typography.titleSmall, color = FocuSenseText)
                 SessionContext.entries.chunked(3).forEach { row ->
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         row.forEach { item ->
