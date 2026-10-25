@@ -18,13 +18,16 @@ class FocusRepository(private val db: AppDatabase) {
     suspend fun createSession(
         plannedMinutes: Int,
         context: SessionContext = SessionContext.WORK,
-        tags: List<String> = emptyList()
+        tags: List<String> = emptyList(),
+        strictness: FocusStrictness = FocusStrictness.STANDARD
     ): Long = db.focusSessionDao().insert(
         FocusSessionEntity(
             startedAt = System.currentTimeMillis(),
             plannedDurationMinutes = plannedMinutes,
             contextKey = context.key,
-            tagsCsv = SessionTagCodec.encode(tags)
+            tagsCsv = SessionTagCodec.encode(tags),
+            strictnessKey = strictness.name,
+            sessionStatusKey = SessionStatus.ACTIVE.name
         )
     )
 
@@ -48,41 +51,106 @@ class FocusRepository(private val db: AppDatabase) {
         sessionId: Long,
         postureReminderCount: Int = 0,
         profile: PersonalFocusProfile = PersonalFocusProfile.generic(),
-        availability: SensorAvailability = SensorAvailability(true, true, true, true)
+        availability: SensorAvailability = SensorAvailability(true, true, true, true),
+        runtime: FocusRuntimeSnapshot = FocusRuntimeSnapshot(),
+        requestedStatus: SessionStatus = SessionStatus.COMPLETED
     ) {
         val session = db.focusSessionDao().getById(sessionId) ?: return
         val samples = db.sensorSampleDao().getForSession(sessionId)
-        val summary = FocusScoreEngine.summarize(samples, profile.targets, availability, profile.weights)
+        val summary = FocusScoreEngine.summarize(
+            samples = samples,
+            targets = profile.targets,
+            availability = availability,
+            weights = profile.weights
+        )
         val end = System.currentTimeMillis()
-        db.focusSessionDao().update(session.copy(
-            endedAt = end,
-            actualDurationSeconds = ((end - session.startedAt) / 1000L).coerceAtLeast(0),
-            focusScore = summary.focusScore,
-            avgNoiseDbfs = summary.avgNoiseDbfs.takeIf { availability.microphone },
-            noiseStdDev = summary.noiseStdDev.takeIf { availability.microphone },
-            avgLightLux = summary.avgLightLux.takeIf { availability.light },
-            lightStdDev = summary.lightStdDev.takeIf { availability.light },
-            avgMotionIndex = summary.avgMotionIndex.takeIf { availability.accelerometer },
-            avgGyro = summary.avgGyro.takeIf { availability.gyroscope },
-            stablePercent = summary.stablePercent.takeIf { availability.accelerometer },
-            faceUpPercent = summary.faceUpPercent.takeIf { availability.accelerometer },
-            interruptionCount = if (availability.accelerometer) summary.interruptionCount else 0,
-            postureReminderCount = postureReminderCount
-        ))
+        val actualSeconds = ((end - session.startedAt) / 1000L).coerceAtLeast(0)
+        val completionRatio = if (session.plannedDurationMinutes <= 0) 1f
+        else actualSeconds.toFloat() / (session.plannedDurationMinutes * 60L)
+
+        val finalStatus = when {
+            requestedStatus == SessionStatus.INTERRUPTED -> SessionStatus.INTERRUPTED
+            requestedStatus == SessionStatus.COMPLETED || completionRatio >= .90f -> SessionStatus.COMPLETED
+            else -> SessionStatus.ABANDONED
+        }
+
+        val integrity = FocusIntegrityEngine.calculate(
+            elapsedSeconds = actualSeconds,
+            unstableSeconds = runtime.unstableSeconds,
+            pickupCount = runtime.pickupCount,
+            foregroundBreakCount = runtime.foregroundBreakCount,
+            backgroundSeconds = runtime.backgroundSeconds,
+            strictness = runtime.strictness
+        )
+        val growth = FocusIntegrityEngine.growthPoints(
+            elapsedSeconds = actualSeconds,
+            plannedSeconds = session.plannedDurationMinutes * 60L,
+            integrityScore = integrity,
+            screenOffSeconds = runtime.screenOffSeconds,
+            status = finalStatus
+        )
+        val core = FocusIntegrityEngine.coreStage(
+            growthPoints = growth,
+            integrityScore = integrity,
+            status = finalStatus
+        )
+        val overall = FocusScoreEngine.combinedSessionScore(
+            environmentScore = summary.environmentScore,
+            integrityScore = integrity
+        )
+
+        db.focusSessionDao().update(
+            session.copy(
+                endedAt = end,
+                actualDurationSeconds = actualSeconds,
+                focusScore = overall,
+                environmentScore = summary.environmentScore,
+                integrityScore = integrity,
+                avgNoiseDbfs = summary.avgNoiseDbfs.takeIf { availability.microphone },
+                noiseStdDev = summary.noiseStdDev.takeIf { availability.microphone },
+                avgLightLux = summary.avgLightLux.takeIf { availability.light },
+                lightStdDev = summary.lightStdDev.takeIf { availability.light },
+                avgMotionIndex = summary.avgMotionIndex.takeIf { availability.accelerometer },
+                avgGyro = summary.avgGyro.takeIf { availability.gyroscope },
+                stablePercent = summary.stablePercent.takeIf { availability.accelerometer },
+                faceUpPercent = summary.faceUpPercent.takeIf { availability.accelerometer },
+                interruptionCount = if (availability.accelerometer) summary.interruptionCount else 0,
+                postureReminderCount = postureReminderCount,
+                strictnessKey = runtime.strictness.name,
+                sessionStatusKey = finalStatus.name,
+                foregroundBreakCount = runtime.foregroundBreakCount,
+                backgroundSeconds = runtime.backgroundSeconds,
+                screenOffSeconds = runtime.screenOffSeconds,
+                unstableSeconds = runtime.unstableSeconds,
+                unstablePercent = if (actualSeconds > 0L) {
+                    runtime.unstableSeconds * 100f / actualSeconds
+                } else 0f,
+                pickupCount = runtime.pickupCount,
+                growthPoints = growth,
+                coreStageKey = core.name
+            )
+        )
     }
 
     suspend fun buildFocusTargets(): FocusTargets = buildPersonalProfile().targets
 
     suspend fun buildPersonalProfile(): PersonalFocusProfile {
         val completed = db.focusSessionDao().getRecentCompleted(60)
-        val rated = completed.filter { it.selfFocusRating != null }.take(30)
-        val productive = rated.filter { (it.selfFocusRating ?: 0) >= 4 }.take(15)
-        if (productive.size < 3) return PersonalFocusProfile(
-            level = CalibrationLevel.GENERIC,
-            confidencePercent = (productive.size * 12).coerceAtMost(30),
-            ratedSessions = rated.size,
-            productiveSessions = productive.size
-        )
+        val rated = completed
+            .filter { it.selfFocusRating != null && it.actualDurationSeconds >= 600 }
+            .take(30)
+        val productive = rated
+            .filter { (it.selfFocusRating ?: 0) >= 4 }
+            .take(15)
+
+        if (productive.size < 3) {
+            return PersonalFocusProfile(
+                level = CalibrationLevel.GENERIC,
+                confidencePercent = (productive.size * 12).coerceAtMost(30),
+                ratedSessions = rated.size,
+                productiveSessions = productive.size
+            )
+        }
 
         val defaults = FocusTargets()
         val noises = productive.mapNotNull { it.avgNoiseDbfs }.filter { it in -90f..0f }
@@ -98,15 +166,25 @@ class FocusRepository(private val db: AppDatabase) {
         val p75Motion = percentile(motions, .75f)
 
         val targets = FocusTargets(
-            quietNoiseDbfs = if (personalNoise) (medianNoise!! - 10f).coerceIn(-80f, -35f) else defaults.quietNoiseDbfs,
-            loudNoiseDbfs = if (personalNoise) (medianNoise!! + 18f).coerceIn(-35f, -8f) else defaults.loudNoiseDbfs,
-            preferredMinLightLux = if (personalLight) (p25Light!! * .75f).coerceIn(100f, 900f) else defaults.preferredMinLightLux,
-            preferredMaxLightLux = if (personalLight) (p75Light!! * 1.35f + 80f).coerceIn(350f, 2500f) else defaults.preferredMaxLightLux,
-            stableMotionIndex = if (personalMotion) (p75Motion!! + 5f).coerceIn(10f, 35f) else defaults.stableMotionIndex
+            quietNoiseDbfs = if (personalNoise) {
+                (medianNoise!! - 10f).coerceIn(-80f, -35f)
+            } else defaults.quietNoiseDbfs,
+            loudNoiseDbfs = if (personalNoise) {
+                (medianNoise!! + 18f).coerceIn(-35f, -8f)
+            } else defaults.loudNoiseDbfs,
+            preferredMinLightLux = if (personalLight) {
+                (p25Light!! * .75f).coerceIn(100f, 900f)
+            } else defaults.preferredMinLightLux,
+            preferredMaxLightLux = if (personalLight) {
+                (p75Light!! * 1.35f + 80f).coerceIn(350f, 2500f)
+            } else defaults.preferredMaxLightLux,
+            stableMotionIndex = if (personalMotion) {
+                (p75Motion!! + 5f).coerceIn(10f, 35f)
+            } else defaults.stableMotionIndex
         ).let {
-            if (it.preferredMaxLightLux <= it.preferredMinLightLux + 100f)
+            if (it.preferredMaxLightLux <= it.preferredMinLightLux + 100f) {
                 it.copy(preferredMaxLightLux = it.preferredMinLightLux + 150f)
-            else it
+            } else it
         }
 
         val level = when {
@@ -127,7 +205,7 @@ class FocusRepository(private val db: AppDatabase) {
         val weights = FocusWeights(
             noise = d.noise * (1f - blend) + adaptive.noise * blend,
             light = d.light * (1f - blend) + adaptive.light * blend,
-            motion = d.motion * (1f - blend) + adaptive.motion * blend
+            motion = 0f
         ).normalized()
 
         return PersonalFocusProfile(
@@ -148,30 +226,32 @@ class FocusRepository(private val db: AppDatabase) {
         productive: List<FocusSessionEntity>
     ): FocusWeights {
         val lower = rated.filter { (it.selfFocusRating ?: 5) <= 3 }
-        if (rated.size < 6 || productive.size < 3 || lower.size < 2) return FocusWeights()
+        if (rated.size < 6 || productive.size < 3 || lower.size < 2) {
+            return FocusWeights(noise = .55f, light = .45f, motion = 0f)
+        }
 
         fun avg(list: List<FocusSessionEntity>, pick: (FocusSessionEntity) -> Float?) =
             list.mapNotNull(pick).takeIf { it.isNotEmpty() }?.average()?.toFloat()
 
         val hn = avg(productive) { it.avgNoiseDbfs }
         val ln = avg(lower) { it.avgNoiseDbfs }
-        val hm = avg(productive) { it.avgMotionIndex }
-        val lm = avg(lower) { it.avgMotionIndex }
         val highLights = productive.mapNotNull { it.avgLightLux }
         val lowLights = lower.mapNotNull { it.avgLightLux }
         val lightCenter = percentile(highLights, .50f)
 
-        val noiseEvidence = if (hn != null && ln != null) ((ln - hn) / 20f).coerceIn(0f, 1f) else .35f
-        val motionEvidence = if (hm != null && lm != null) ((lm - hm) / 30f).coerceIn(0f, 1f) else .35f
-        val lightEvidence = if (lightCenter != null && lowLights.isNotEmpty())
-            (lowLights.map { abs(it - lightCenter) }.average().toFloat() / 700f).coerceIn(0f, 1f)
-        else .35f
+        val noiseEvidence =
+            if (hn != null && ln != null) ((ln - hn) / 20f).coerceIn(0f, 1f) else .35f
+        val lightEvidence =
+            if (lightCenter != null && lowLights.isNotEmpty()) {
+                (lowLights.map { abs(it - lightCenter) }.average().toFloat() / 700f)
+                    .coerceIn(0f, 1f)
+            } else .35f
 
         return FocusWeights(
-            .25f + noiseEvidence,
-            .25f + lightEvidence,
-            .25f + motionEvidence
-        ).normalized()
+            noise = .25f + noiseEvidence,
+            light = .25f + lightEvidence,
+            motion = 0f
+        )
     }
 
     private fun percentile(values: List<Float>, q: Float): Float? {
@@ -202,7 +282,7 @@ class FocusRepository(private val db: AppDatabase) {
 
     suspend fun cleanupRawSamples(daysToKeep: Int = 30): Int =
         db.sensorSampleDao().deleteOlderThan(
-            System.currentTimeMillis() - daysToKeep * 86400000L
+            System.currentTimeMillis() - daysToKeep * 86_400_000L
         )
 
     suspend fun deleteUnfinishedSessions(): Int =
