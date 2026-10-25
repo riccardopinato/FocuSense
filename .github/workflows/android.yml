@@ -103,7 +103,9 @@ jobs:
               [ -f "$FILE" ] || continue
               BYTES="$(stat -c%s "$FILE")"
               MIB="$(awk "BEGIN {printf \"%.2f\", $BYTES/1048576}")"
-              echo "| `$(basename "$FILE")` | $BYTES | $MIB |"
+              NAME="$(basename "$FILE")"
+              echo "$NAME: $BYTES bytes ($MIB MiB)"
+              echo "| $NAME | $BYTES | $MIB |"
             done
           } >> "$GITHUB_STEP_SUMMARY"
 
