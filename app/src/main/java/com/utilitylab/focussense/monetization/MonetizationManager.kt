@@ -16,6 +16,7 @@ import com.android.billingclient.api.QueryPurchasesParams
 import com.google.android.gms.ads.MobileAds
 import com.google.android.ump.ConsentInformation
 import com.google.android.ump.ConsentRequestParameters
+import com.google.android.ump.PrivacyOptionsRequirementStatus
 import com.google.android.ump.UserMessagingPlatform
 import com.utilitylab.focussense.BuildConfig
 import com.utilitylab.focussense.data.UserPreferences
@@ -253,7 +254,6 @@ class MonetizationManager(
                 ?.oneTimePurchaseOfferDetailsList
                 ?.firstOrNull()
                 ?.formattedPrice
-                ?: details?.oneTimePurchaseOfferDetails?.formattedPrice
 
             updateState(productPrice = price)
             onResult?.invoke(details)
@@ -284,7 +284,7 @@ class MonetizationManager(
             adsEnabled = adsEnabled,
             privacyOptionsRequired =
                 consentInformation.privacyOptionsRequirementStatus ==
-                    ConsentInformation.PrivacyOptionsRequirementStatus.REQUIRED
+                    PrivacyOptionsRequirementStatus.REQUIRED
         )
     }
 
