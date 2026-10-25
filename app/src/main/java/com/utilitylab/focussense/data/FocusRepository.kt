@@ -285,6 +285,36 @@ class FocusRepository(private val db: AppDatabase) {
             System.currentTimeMillis() - daysToKeep * 86_400_000L
         )
 
+    suspend fun recoverUnfinishedSessions(): Int {
+        val unfinished = db.focusSessionDao().getUnfinished()
+        unfinished.forEach { session ->
+            val lastTimestamp =
+                db.sensorSampleDao().lastTimestamp(session.id) ?: session.startedAt
+            val safeEnd = lastTimestamp.coerceAtLeast(session.startedAt)
+            val elapsed = ((safeEnd - session.startedAt) / 1000L)
+                .coerceAtLeast(0L)
+
+            db.focusSessionDao().update(
+                session.copy(
+                    endedAt = safeEnd,
+                    actualDurationSeconds = elapsed,
+                    sessionStatusKey = SessionStatus.INTERRUPTED.name,
+                    focusScore = null,
+                    environmentScore = null,
+                    integrityScore = null,
+                    growthPoints = 0,
+                    coreStageKey =
+                        if (elapsed >= GamificationEngine.MIN_VALID_SECONDS) {
+                            FocusCoreStage.FRACTURED.name
+                        } else {
+                            FocusCoreStage.NONE.name
+                        }
+                )
+            )
+        }
+        return unfinished.size
+    }
+
     suspend fun deleteUnfinishedSessions(): Int =
         db.focusSessionDao().deleteUnfinished()
 
