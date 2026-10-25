@@ -77,6 +77,15 @@ class MonetizationManager(
     }
 
     fun refreshConsent(activity: Activity) {
+        if (!BuildConfig.USE_TEST_ADS && !BuildConfig.ADMOB_PRODUCTION_CONFIGURED) {
+            _state.value = _state.value.copy(
+                canRequestAds = false,
+                adsEnabled = false,
+                privacyOptionsRequired = false
+            )
+            return
+        }
+
         val params = ConsentRequestParameters.Builder().build()
         consentInformation.requestConsentInfoUpdate(
             activity,
@@ -94,6 +103,9 @@ class MonetizationManager(
     }
 
     fun showPrivacyOptions(activity: Activity) {
+        if (!BuildConfig.USE_TEST_ADS && !BuildConfig.ADMOB_PRODUCTION_CONFIGURED) {
+            return
+        }
         UserMessagingPlatform.showPrivacyOptionsForm(activity) {
             refreshAdState()
         }
