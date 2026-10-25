@@ -10,16 +10,14 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -27,10 +25,21 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.utilitylab.focussense.domain.SessionContext
 import com.utilitylab.focussense.domain.SessionTagCodec
 import com.utilitylab.focussense.ui.MainViewModel
+import com.utilitylab.focussense.ui.components.FocusScoreRing
 import com.utilitylab.focussense.ui.components.FocusTrendChart
+import com.utilitylab.focussense.ui.components.NeonCard
+import com.utilitylab.focussense.ui.components.NeonMetricCard
+import com.utilitylab.focussense.ui.components.NeonOutlineButton
+import com.utilitylab.focussense.ui.components.NeonPill
+import com.utilitylab.focussense.ui.components.NeonSectionHeader
 import com.utilitylab.focussense.ui.components.PermissionAwareStartButton
 import com.utilitylab.focussense.ui.components.ProgressCard
 import com.utilitylab.focussense.ui.components.SessionSetupDialog
+import com.utilitylab.focussense.ui.theme.FocuSenseCyan
+import com.utilitylab.focussense.ui.theme.FocuSenseDanger
+import com.utilitylab.focussense.ui.theme.FocuSenseGreen
+import com.utilitylab.focussense.ui.theme.FocuSensePurple
+import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 
 @Composable
 fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
@@ -42,10 +51,14 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
     val localContext = LocalContext.current
     var showSessionSetup by remember { mutableStateOf(false) }
 
-    val completed = sessions.filter { it.focusScore != null }
-    val avg = completed.mapNotNull { it.focusScore }.take(7).let {
-        if (it.isEmpty()) 0 else it.average().toInt()
+    val completed = remember(sessions) {
+        sessions
+            .filter { it.focusScore != null }
+            .sortedByDescending { it.startedAt }
     }
+    val recent = completed.take(7)
+    val avg = if (recent.isEmpty()) 0 else recent.mapNotNull { it.focusScore }.average().toInt()
+    val latest = completed.firstOrNull()
     val recentTags = remember(sessions) {
         sessions
             .flatMap { SessionTagCodec.decode(it.tagsCsv) }
@@ -57,71 +70,140 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
         Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text("FocuSense", style = MaterialTheme.typography.headlineLarge)
-        Text("Capisci come rumore, luce e movimento si associano alle tue sessioni di concentrazione.")
+        Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+            Text(
+                "FocuSense",
+                style = MaterialTheme.typography.headlineLarge
+            )
+            Text(
+                "Il tuo ambiente, tradotto in condizioni di focus.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = FocuSenseTextMuted
+            )
+        }
 
         error?.let { message ->
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("Sessione non avviata", style = MaterialTheme.typography.titleMedium)
-                    Text(message)
-                    TextButton(onClick = vm::clearSessionError) { Text("Chiudi") }
-                }
+            NeonCard(
+                modifier = Modifier.fillMaxWidth(),
+                accent = FocuSenseDanger
+            ) {
+                Text("Sessione non avviata", style = MaterialTheme.typography.titleMedium)
+                Text(message, color = FocuSenseTextMuted)
+                NeonOutlineButton(
+                    text = "Chiudi",
+                    accent = FocuSenseDanger,
+                    onClick = vm::clearSessionError
+                )
             }
+        }
+
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            FocusScoreRing(
+                score = avg,
+                title = if (completed.isEmpty()) "Pronto a iniziare" else "Focus Score",
+                subtitle = when {
+                    completed.isEmpty() -> "Completa la prima sessione"
+                    avg >= 75 -> "Condizioni recenti favorevoli"
+                    avg >= 50 -> "Condizioni recenti discrete"
+                    else -> "C'è margine per migliorare l'ambiente"
+                }
+            )
         }
 
         Row(
             Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            MetricCard("Media recente", "$avg/100", Modifier.weight(1f))
-            MetricCard("Sessioni", completed.size.toString(), Modifier.weight(1f))
+            NeonMetricCard(
+                title = "Rumore",
+                value = latest?.avgNoiseDbfs?.let { "${it.toInt()} dBFS" } ?: "—",
+                subtitle = "ultimo dato",
+                accent = FocuSenseCyan,
+                modifier = Modifier.weight(1f)
+            )
+            NeonMetricCard(
+                title = "Luce",
+                value = latest?.avgLightLux?.let { "${it.toInt()} lux" } ?: "—",
+                subtitle = "ultimo dato",
+                accent = FocuSenseGreen,
+                modifier = Modifier.weight(1f)
+            )
+            NeonMetricCard(
+                title = "Stabilità",
+                value = latest?.stablePercent?.let { "${it.toInt()}%" } ?: "—",
+                subtitle = "telefono",
+                accent = FocuSensePurple,
+                modifier = Modifier.weight(1f)
+            )
         }
 
-        ProgressCard(progress)
+        NeonCard(
+            modifier = Modifier.fillMaxWidth(),
+            accent = FocuSenseCyan
+        ) {
+            NeonSectionHeader(
+                title = if (active != null) "Sessione in corso" else "Nuova sessione",
+                subtitle = "Durata predefinita ${prefs.defaultSessionMinutes} min"
+            )
 
-        Card(Modifier.fillMaxWidth()) {
-            Column(
-                Modifier.padding(18.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                Text("Nuova sessione", style = MaterialTheme.typography.titleLarge)
-                Text("Durata predefinita: ${prefs.defaultSessionMinutes} min")
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf(25, 50, 90).forEach { value ->
-                        OutlinedButton(onClick = { vm.setSessionMinutes(value) }) {
-                            Text("$value min")
-                        }
-                    }
+                listOf(25, 50, 90).forEach { value ->
+                    NeonPill(
+                        text = "$value min",
+                        selected = prefs.defaultSessionMinutes == value,
+                        onClick = { vm.setSessionMinutes(value) },
+                        modifier = Modifier.weight(1f)
+                    )
                 }
-                if (active != null) {
-                    OutlinedButton(onClick = openSession) {
-                        Text("Torna alla sessione attiva")
-                    }
-                } else {
-                    PermissionAwareStartButton(
-                        enabled = true,
-                        label = "Avvia analisi"
-                    ) {
-                        showSessionSetup = true
-                    }
+            }
+
+            if (active != null) {
+                NeonOutlineButton(
+                    text = "Torna alla sessione",
+                    onClick = openSession,
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = FocuSenseGreen
+                )
+            } else {
+                PermissionAwareStartButton(
+                    enabled = true,
+                    label = "Avvia sessione",
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    showSessionSetup = true
                 }
             }
         }
 
+        ProgressCard(progress)
+
         if (completed.isNotEmpty()) {
-            Text("Andamento", style = MaterialTheme.typography.titleLarge)
-            FocusTrendChart(
-                sessions = completed,
-                modifier = Modifier.fillMaxWidth().height(180.dp)
-            )
+            NeonCard(
+                modifier = Modifier.fillMaxWidth(),
+                accent = FocuSensePurple
+            ) {
+                NeonSectionHeader(
+                    title = "Andamento",
+                    subtitle = "Ultime ${recent.size} sessioni"
+                )
+                FocusTrendChart(
+                    sessions = recent.reversed(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(180.dp)
+                )
+            }
         }
+
         Spacer(Modifier.height(12.dp))
     }
 
@@ -141,15 +223,5 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
                 ) { openSession() }
             }
         )
-    }
-}
-
-@Composable
-private fun MetricCard(title: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier) {
-        Column(Modifier.padding(16.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge)
-            Text(value, style = MaterialTheme.typography.headlineMedium)
-        }
     }
 }
