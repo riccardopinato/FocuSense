@@ -11,6 +11,7 @@ import androidx.compose.ui.unit.dp
 import com.utilitylab.focussense.data.SessionDetailData
 import com.utilitylab.focussense.data.local.SensorSampleEntity
 import com.utilitylab.focussense.domain.SessionContext
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.domain.SessionTagCodec
 import java.time.Instant
 import java.time.ZoneId
@@ -32,7 +33,7 @@ fun SessionDetailDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("Dettaglio sessione") },
+        title = { Text("Dettaglio sessione", color = FocuSenseText) },
         text = {
             Column(
                 Modifier.fillMaxWidth(),
@@ -69,7 +70,7 @@ fun SessionDetailDialog(
 
                 HorizontalDivider()
                 if (detail.samples.size >= 2) {
-                    Text("Andamento durante la sessione", style = MaterialTheme.typography.titleMedium)
+                    Text("Andamento durante la sessione", style = MaterialTheme.typography.titleMedium, color = FocuSenseText)
                     SessionMiniChart(detail.samples, Modifier.fillMaxWidth().height(120.dp))
                     Text(
                         "Grafico indicativo: rumore, luce e movimento sono normalizzati separatamente su scala 0-1.",
