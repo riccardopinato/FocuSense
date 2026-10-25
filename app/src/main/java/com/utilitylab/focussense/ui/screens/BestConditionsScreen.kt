@@ -22,6 +22,7 @@ import com.utilitylab.focussense.ui.components.NeonSectionHeader
 import com.utilitylab.focussense.ui.theme.FocuSenseCyan
 import com.utilitylab.focussense.ui.theme.FocuSenseGreen
 import com.utilitylab.focussense.ui.theme.FocuSensePurple
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 import kotlin.math.roundToInt
 
@@ -50,7 +51,7 @@ fun BestConditionsScreen(vm: MainViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                     accent = FocuSensePurple
                 ) {
-                    Text("Sto imparando", style = MaterialTheme.typography.titleLarge)
+                    Text("Sto imparando", style = MaterialTheme.typography.titleLarge, color = FocuSenseText)
                     Text(
                         "Servono almeno 5 sessioni valide di almeno 10 minuti.",
                         color = FocuSenseTextMuted
@@ -96,7 +97,7 @@ fun BestConditionsScreen(vm: MainViewModel) {
                     modifier = Modifier.fillMaxWidth(),
                     accent = FocuSenseGreen
                 ) {
-                    Text("Ambiente attuale", style = MaterialTheme.typography.titleLarge)
+                    Text("Ambiente attuale", style = MaterialTheme.typography.titleLarge, color = FocuSenseText)
                     Text(
                         "${match.score}%",
                         style = MaterialTheme.typography.displaySmall,
