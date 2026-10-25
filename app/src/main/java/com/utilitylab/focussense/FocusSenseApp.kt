@@ -17,7 +17,7 @@ class FocusSenseApp : Application(), DefaultLifecycleObserver {
     val monetization: MonetizationManager by lazy { MonetizationManager(this, preferences) }
 
     override fun onCreate() {
-        super.onCreate()
+        super<Application>.onCreate()
         ProcessLifecycleOwner.get().lifecycle.addObserver(this)
         monetization
     }
