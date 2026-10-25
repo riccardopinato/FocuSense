@@ -83,6 +83,9 @@ jobs:
         run: ./gradlew :app:assembleDebug --stacktrace
 
       - name: Build release APK and AAB
+        env:
+          FOCUSENSE_ADMOB_APP_ID: ${{ secrets.FOCUSENSE_ADMOB_APP_ID }}
+          FOCUSENSE_ADMOB_BANNER_ID: ${{ secrets.FOCUSENSE_ADMOB_BANNER_ID }}
         run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace
 
       - name: Size report and budget
