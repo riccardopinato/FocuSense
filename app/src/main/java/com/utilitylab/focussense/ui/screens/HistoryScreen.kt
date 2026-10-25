@@ -31,6 +31,7 @@ import com.utilitylab.focussense.ui.components.SessionDetailDialog
 import com.utilitylab.focussense.ui.theme.FocuSenseCyan
 import com.utilitylab.focussense.ui.theme.FocuSenseDanger
 import com.utilitylab.focussense.ui.theme.FocuSenseGreen
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 import java.time.Instant
 import java.time.ZoneId
@@ -171,7 +172,7 @@ private fun HistoryCard(
             horizontalArrangement = Arrangement.SpaceBetween
         ) {
             Column {
-                Text(sessionContext.label, style = MaterialTheme.typography.titleMedium)
+                Text(sessionContext.label, style = MaterialTheme.typography.titleMedium, color = FocuSenseText)
                 Text(date, style = MaterialTheme.typography.bodySmall, color = FocuSenseTextMuted)
             }
             Text(
