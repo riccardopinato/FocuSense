@@ -1,58 +1,126 @@
 # FocuSense
 
-FocuSense è una utility Android local-first per osservare come rumore, luce e movimento del telefono si associano alle sessioni di studio/lavoro.
+FocuSense è una focus utility Android local-first: aiuta a lasciare in pace il telefono durante studio e lavoro e analizza quali condizioni di rumore e luce ricorrono quando l'utente dichiara di essersi concentrato meglio.
 
-## Stato
+## FocuSense 1.0 RC1
 
-Baseline ricostruita e consolidata dagli step già validati fino alla 0.6, con hardening Lean Release 0.8.
+Il prodotto ruota attorno a quattro concetti separati:
 
-Funzioni principali:
-- sessioni con rumore dBFS, luce, accelerometro e giroscopio;
-- Focus Score deterministico con sensori disponibili e calibrazione personale;
-- storico e dettaglio sessione;
-- insight temporali;
-- contesti e tag;
-- gamification leggera: XP, livelli, streak, obiettivi e badge;
-- Best Conditions Dashboard;
-- profilo Google opzionale;
-- Room local-first e DataStore;
-- Foreground Service soltanto durante la sessione.
+- **Environment Score** — rumore + luce;
+- **Focus Integrity** — movimento del telefono, pickup e uscite dall'app a schermo acceso;
+- **Focus percepito** — rating 1–5 dell'utente, usato come ground truth personale;
+- **Session Score** — riepilogo 60% Integrity + 40% ambiente.
 
-Limiti espliciti:
-- non registra né conserva audio;
-- non è un fonometro certificato;
-- il movimento riguarda il telefono, non misura la postura del corpo;
-- gli insight descrivono associazioni storiche, non causalità o diagnosi.
+### Focus Display AMOLED
 
-## Stack
+Durante una sessione, per default FocuSense usa un display minimale:
+- nero reale;
+- timer residuo;
+- barra pastello che si estingue;
+- luminosità molto bassa;
+- controlli nascosti fino al tap;
+- nessun annuncio.
 
-Kotlin, Jetpack Compose, Material 3, Room, DataStore, Android Credential Manager.
+Spegnere manualmente lo schermo **non** penalizza la sessione. Il tempo a schermo spento contribuisce al Deep Focus.
 
-## Release size
+### Focus Integrity
 
-La release usa R8 + resource shrinking. MPAndroidChart, JitPack e `material-icons-extended` sono stati rimossi; il trend è disegnato con Compose Canvas e le icone di navigazione sono VectorDrawable locali.
+Modalità:
+- Relaxed — 15% instabilità tollerata;
+- Standard — 8%;
+- Strict — 3%.
 
-Budget prodotto:
-- target APK release universale: <= 25 MiB;
-- hard review gate: > 30 MiB.
+Il motore applica hysteresis/cooldown ai pickup per evitare di contare lo stesso movimento più volte.
 
-## Build firmate
+### Focus Core / Sanctuary
 
-Le build su `main` usano i repository secrets:
+Le sessioni completate producono Focus Core procedurali:
+
+`Spark -> Orb -> Crystal -> Nova -> Prism`
+
+Una sessione abbandonata può lasciare un `Fractured Core` invece di azzerare tutto. I Core vengono conservati nel Sanctuary insieme a XP, livelli, streak, obiettivi e badge.
+
+## Best Conditions
+
+Best Conditions non seleziona più le sessioni sulla base dello score automatico. Usa le sessioni valutate dall'utente e privilegia rating 4–5/5, evitando la precedente circolarità.
+
+Gli insight sono descrittivi e non causali.
+
+## Sensori e privacy
+
+- microfono: solo livello numerico dBFS, nessun audio conservato;
+- luce: lux quando disponibile;
+- accelerometro + giroscopio: stabilità/movimento del telefono;
+- nessuna misurazione reale della postura corporea;
+- Foreground Service solo durante la sessione;
+- Room + DataStore local-first.
+
+## Monetizzazione
+
+### Free
+- focus sessions;
+- Focus Core e Sanctuary;
+- analytics;
+- banner AdMob soltanto fuori dalla sessione.
+
+### Pro Lifetime
+Product ID previsto:
+
+`focussense_pro_lifetime`
+
+Pro non effettua richieste pubblicitarie.
+
+La build supporta:
+- Google Mobile Ads;
+- UMP consent;
+- Play Billing one-time;
+- restore purchase.
+
+### Configurazione production ancora richiesta
+
+GitHub secrets:
+
+- `FOCUSENSE_ADMOB_APP_ID`
+- `FOCUSENSE_ADMOB_BANNER_ID`
+
+Senza entrambi, la release resta **fail-closed** e non richiede ads.
+
+Servono inoltre:
+- app configurata in AdMob;
+- messaggio UMP/privacy pubblicato;
+- privacy policy reale;
+- prodotto Play `focussense_pro_lifetime`;
+- test sandbox acquisto/ripristino.
+
+## Build / release
+
+Package ID stabile:
+
+`com.utilitylab.focussense`
+
+Le build `main` usano:
 - `ANDROID_KEYSTORE_BASE64`
 - `ANDROID_KEYSTORE_PASSWORD`
 - `ANDROID_KEY_ALIAS`
 - `ANDROID_KEY_PASSWORD`
 
-La keystore non deve mai essere committata.
-
-Package ID stabile: `com.utilitylab.focussense`.
-
-Per aggiornare un APK già installato senza disinstallazione servono:
-1. stesso package ID;
-2. stessa chiave di firma;
-3. `versionCode` crescente.
+La release usa R8 + resource shrinking e mantiene il size gate.
 
 ## Provenienza
 
-La prima implementazione dei sensori è stata ispirata/adattata da MindBricks (MIT). La licenza del donor è conservata in `app/src/main/assets/licenses/MindBricks_LICENSE.txt`.
+La prima implementazione dei sensori è stata ispirata/adattata da MindBricks (MIT). La licenza del donor è conservata in:
+
+`app/src/main/assets/licenses/MindBricks_LICENSE.txt`
+
+## Evidence boundary
+
+CI green non certifica:
+- pickup detection fisica;
+- comportamento OEM/background;
+- consumo batteria;
+- Focus Display su AMOLED reale;
+- UMP production;
+- AdMob production;
+- Play Billing sandbox.
+
+Queste capability richiedono validazione sullo stesso artifact firmato.
