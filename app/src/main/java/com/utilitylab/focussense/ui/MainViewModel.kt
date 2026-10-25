@@ -126,7 +126,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         if (activeSessionId.value == null) {
             viewModelScope.launch {
-                app.repository.deleteUnfinishedSessions()
+                app.repository.recoverUnfinishedSessions()
                 refreshPersonalProfile()
             }
         }
