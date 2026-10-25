@@ -41,7 +41,7 @@ fun BestConditionsScreen(vm: MainViewModel) {
         item {
             NeonSectionHeader(
                 title = "Condizioni migliori",
-                subtitle = "Il profilo ambientale delle tue sessioni migliori"
+                subtitle = "Pattern delle sessioni che hai valutato meglio"
             )
         }
 
@@ -53,7 +53,7 @@ fun BestConditionsScreen(vm: MainViewModel) {
                 ) {
                     Text("Sto imparando", style = MaterialTheme.typography.titleLarge, color = FocuSenseText)
                     Text(
-                        "Servono almeno 5 sessioni valide di almeno 10 minuti.",
+                        "Servono almeno 5 sessioni da almeno 10 minuti con una tua valutazione del focus.",
                         color = FocuSenseTextMuted
                     )
                     NeonProgressBar(
@@ -105,7 +105,7 @@ fun BestConditionsScreen(vm: MainViewModel) {
                     )
                     NeonProgressBar(match.score!! / 100f, accent = FocuSenseGreen)
                     Text(
-                        "Compatibilità con le condizioni osservate nelle tue sessioni migliori.",
+                        "Compatibilità di rumore e luce con le condizioni ricorrenti nelle sessioni che hai valutato meglio.",
                         color = FocuSenseTextMuted
                     )
                     Row(
@@ -114,7 +114,6 @@ fun BestConditionsScreen(vm: MainViewModel) {
                     ) {
                         match.noiseScore?.let { Text("Rumore $it", color = FocuSenseCyan) }
                         match.lightScore?.let { Text("Luce $it", color = FocuSenseGreen) }
-                        match.motionScore?.let { Text("Mov. $it", color = FocuSensePurple) }
                     }
                 }
             }
@@ -126,8 +125,8 @@ fun BestConditionsScreen(vm: MainViewModel) {
                 accent = FocuSenseCyan
             ) {
                 NeonSectionHeader(
-                    title = "Profilo ideale osservato",
-                    subtitle = "Range ricavati dallo storico personale"
+                    title = "Profilo personale osservato",
+                    subtitle = "Range ricavati dai rating 4–5/5 quando disponibili"
                 )
 
                 profile.strongestContext?.let {
@@ -149,7 +148,7 @@ fun BestConditionsScreen(vm: MainViewModel) {
                     )
                 }
                 profile.preferredMotionMax?.let {
-                    MetricRow("Movimento", "≤ ${it.roundToInt()}/100")
+                    MetricRow("Movimento tipico", "≤ ${it.roundToInt()}/100")
                 }
                 profile.typicalStablePercent?.let {
                     MetricRow("Stabilità tipica", "${it.roundToInt()}%")

@@ -39,7 +39,7 @@ class ContextAnalyticsTest {
         )
         assertFalse(
             result.messages.any {
-                it.contains("studio", true) && it.contains("Focus Score medio")
+                it.contains("studio", true) && it.contains("Session Score medio")
             }
         )
     }

@@ -1,11 +1,22 @@
 package com.utilitylab.focussense.ui.screens
 
+import android.app.Activity
+import android.view.WindowManager
+import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
@@ -13,6 +24,7 @@ import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
@@ -20,11 +32,21 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.utilitylab.focussense.data.local.FocusSessionEntity
+import com.utilitylab.focussense.domain.FocusCoreStage
+import com.utilitylab.focussense.domain.FocusRuntimeSnapshot
+import com.utilitylab.focussense.domain.SessionStatus
+import com.utilitylab.focussense.domain.LiveSensorSnapshot
 import com.utilitylab.focussense.ui.MainViewModel
-import com.utilitylab.focussense.ui.components.FocusScoreRing
+import com.utilitylab.focussense.ui.components.FocusCoreVisual
 import com.utilitylab.focussense.ui.components.NeonCard
 import com.utilitylab.focussense.ui.components.NeonMetricCard
 import com.utilitylab.focussense.ui.components.NeonOutlineButton
@@ -37,23 +59,286 @@ import com.utilitylab.focussense.ui.theme.FocuSensePurple
 import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 
+private val PastelMint = Color(0xFFA8E6CF)
+private val PastelSky = Color(0xFFAEC6FF)
+private val PastelLavender = Color(0xFFCDB4DB)
+private val PastelRose = Color(0xFFF3B7C8)
+
 @Composable
-fun SessionScreen(vm: MainViewModel, activeSessionId: Long?, close: () -> Unit) {
+fun SessionScreen(
+    vm: MainViewModel,
+    activeSessionId: Long?,
+    close: () -> Unit
+) {
     val live by vm.live.collectAsStateWithLifecycle()
-    val match by vm.environmentMatch.collectAsStateWithLifecycle()
+    val runtime by vm.runtime.collectAsStateWithLifecycle()
+    val prefs by vm.preferences.collectAsStateWithLifecycle()
     val error by vm.sessionError.collectAsStateWithLifecycle()
+    val sessions by vm.sessions.collectAsStateWithLifecycle()
     val context = LocalContext.current
+    val activity = context as? Activity
     val sessionForRating = remember { mutableStateOf<Long?>(activeSessionId) }
     val showRating = remember { mutableStateOf(false) }
+    val controlsVisible = remember { mutableStateOf(false) }
 
     LaunchedEffect(activeSessionId, error) {
         when {
             error != null -> showRating.value = false
-            activeSessionId != null -> sessionForRating.value = activeSessionId
-            sessionForRating.value != null -> showRating.value = true
+            activeSessionId != null -> {
+                sessionForRating.value = activeSessionId
+                showRating.value = false
+            }
         }
     }
 
+    val completedSession = sessionForRating.value?.let { sessionId ->
+        sessions.firstOrNull { it.id == sessionId && it.endedAt != null }
+    }
+
+    BackHandler(enabled = activeSessionId != null) {
+        controlsVisible.value = true
+    }
+
+    FocusDisplayWindowEffect(
+        activity = activity,
+        enabled = activeSessionId != null && prefs.focusDisplayEnabled
+    )
+
+    when {
+        error != null && activeSessionId == null -> {
+            Column(
+                Modifier
+                    .fillMaxSize()
+                    .padding(18.dp),
+                verticalArrangement = Arrangement.Center
+            ) {
+                NeonCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = FocuSenseDanger
+                ) {
+                    Text(
+                        "Sessione interrotta",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = FocuSenseText
+                    )
+                    Text(error ?: "Errore sconosciuto", color = FocuSenseTextMuted)
+                    NeonPrimaryButton(
+                        text = "Torna alla Home",
+                        onClick = {
+                            vm.clearSessionError()
+                            close()
+                        },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+        }
+
+        activeSessionId != null && prefs.focusDisplayEnabled -> {
+            AmoledFocusDisplay(
+                runtime = runtime,
+                controlsVisible = controlsVisible.value,
+                onToggleControls = {
+                    controlsVisible.value = !controlsVisible.value
+                },
+                onStop = { vm.stopSession(context) }
+            )
+        }
+
+        activeSessionId != null -> {
+            DetailedFocusDisplay(
+                live = live,
+                runtime = runtime,
+                onStop = { vm.stopSession(context) }
+            )
+        }
+
+        completedSession != null && !showRating.value -> {
+            SessionResultScreen(
+                session = completedSession,
+                onContinue = { showRating.value = true }
+            )
+        }
+
+        !showRating.value -> {
+            Box(
+                Modifier.fillMaxSize(),
+                contentAlignment = Alignment.Center
+            ) {
+                Text(
+                    "Finalizzo la sessione…",
+                    color = FocuSenseTextMuted
+                )
+            }
+        }
+    }
+
+    if (showRating.value) {
+        RatingDialog(
+            onSave = { focus, note ->
+                sessionForRating.value?.let {
+                    vm.saveRatings(it, focus, null, note)
+                }
+                sessionForRating.value = null
+                showRating.value = false
+                close()
+            },
+            onSkip = {
+                sessionForRating.value = null
+                showRating.value = false
+                close()
+            }
+        )
+    }
+}
+
+@Composable
+private fun FocusDisplayWindowEffect(
+    activity: Activity?,
+    enabled: Boolean
+) {
+    DisposableEffect(activity, enabled) {
+        if (activity == null || !enabled) {
+            return@DisposableEffect onDispose { }
+        }
+
+        val window = activity.window
+        val previousBrightness = window.attributes.screenBrightness
+
+        val insetsController =
+            WindowCompat.getInsetsController(window, window.decorView)
+
+        window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+        window.attributes = window.attributes.apply {
+            screenBrightness = 0.08f
+        }
+        insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        insetsController.systemBarsBehavior =
+            androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
+
+        onDispose {
+            window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
+            window.attributes = window.attributes.apply {
+                screenBrightness = previousBrightness
+            }
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
+        }
+    }
+}
+
+@Composable
+private fun AmoledFocusDisplay(
+    runtime: FocusRuntimeSnapshot,
+    controlsVisible: Boolean,
+    onToggleControls: () -> Unit,
+    onStop: () -> Unit
+) {
+    val accent = when {
+        runtime.integrityScore >= 92 -> PastelMint
+        runtime.integrityScore >= 75 -> PastelSky
+        runtime.integrityScore >= 55 -> PastelLavender
+        else -> PastelRose
+    }
+
+    val drift = when ((runtime.elapsedSeconds / 60L) % 4L) {
+        0L -> (-2).dp to (-1).dp
+        1L -> 2.dp to (-1).dp
+        2L -> 1.dp to 2.dp
+        else -> (-1).dp to 2.dp
+    }
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(Color.Black)
+            .clickable(onClick = onToggleControls),
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .offset(x = drift.first, y = drift.second)
+                .padding(horizontal = 34.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center
+        ) {
+            Text(
+                formatTimer(runtime.remainingSeconds),
+                style = MaterialTheme.typography.displayLarge,
+                color = Color(0xFFDCE6F2)
+            )
+
+            Spacer(Modifier.height(26.dp))
+
+            Box(
+                Modifier
+                    .fillMaxWidth()
+                    .height(5.dp)
+                    .clip(RoundedCornerShape(100.dp))
+                    .background(Color(0xFF0B0E12))
+            ) {
+                Box(
+                    Modifier
+                        .fillMaxWidth(runtime.remainingFraction.coerceIn(0f, 1f))
+                        .height(5.dp)
+                        .clip(RoundedCornerShape(100.dp))
+                        .background(
+                            Brush.horizontalGradient(
+                                listOf(
+                                    accent.copy(alpha = .48f),
+                                    accent.copy(alpha = .92f)
+                                )
+                            )
+                        )
+                )
+            }
+
+            Spacer(Modifier.height(14.dp))
+
+            Text(
+                "Integrity ${runtime.integrityScore}%",
+                style = MaterialTheme.typography.labelMedium,
+                color = accent.copy(alpha = .72f)
+            )
+
+            if (controlsVisible) {
+                Spacer(Modifier.height(34.dp))
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(18.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        "${runtime.pickupCount} pickup",
+                        color = Color(0xFF7D8796),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                    Text(
+                        "${runtime.foregroundBreakCount} uscite",
+                        color = Color(0xFF7D8796),
+                        style = MaterialTheme.typography.bodySmall
+                    )
+                }
+                Spacer(Modifier.height(18.dp))
+                Text(
+                    "Termina sessione",
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(100.dp))
+                        .clickable(onClick = onStop)
+                        .padding(horizontal = 18.dp, vertical = 10.dp),
+                    color = Color(0xFF788294),
+                    style = MaterialTheme.typography.labelLarge
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailedFocusDisplay(
+    live: LiveSensorSnapshot,
+    runtime: FocusRuntimeSnapshot,
+    onStop: () -> Unit
+) {
     Column(
         Modifier
             .fillMaxSize()
@@ -62,37 +347,26 @@ fun SessionScreen(vm: MainViewModel, activeSessionId: Long?, close: () -> Unit) 
     ) {
         NeonSectionHeader(
             title = "Sessione live",
-            subtitle = if (activeSessionId != null) "Monitoraggio attivo sul dispositivo" else "Sessione terminata"
+            subtitle = "${runtime.strictness.label} · ${formatTimer(runtime.remainingSeconds)} rimanenti"
         )
 
-        if (error != null && activeSessionId == null) {
-            NeonCard(
-                modifier = Modifier.fillMaxWidth(),
-                accent = FocuSenseDanger
-            ) {
-                Text("Sessione interrotta", style = MaterialTheme.typography.titleLarge, color = FocuSenseText)
-                Text(error ?: "Errore sconosciuto", color = FocuSenseTextMuted)
-                NeonPrimaryButton(
-                    text = "Torna alla Home",
-                    onClick = {
-                        vm.clearSessionError()
-                        close()
-                    },
-                    modifier = Modifier.fillMaxWidth()
-                )
-            }
-            return@Column
-        }
-
-        Column(
+        Row(
             Modifier.fillMaxWidth(),
-            horizontalAlignment = Alignment.CenterHorizontally
+            horizontalArrangement = Arrangement.SpaceAround,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            FocusScoreRing(
-                score = live.focusScore,
-                title = "Focus live",
-                subtitle = match.score?.let { "Ambiente $it% allineato" } ?: "Sensori in ascolto"
+            FocusCoreVisual(
+                stage = runtime.coreStage,
+                integrity = runtime.integrityScore
             )
+            Column {
+                Text(
+                    "${runtime.integrityScore}%",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = FocuSenseGreen
+                )
+                Text("Focus Integrity", color = FocuSenseTextMuted)
+            }
         }
 
         Row(
@@ -111,104 +385,147 @@ fun SessionScreen(vm: MainViewModel, activeSessionId: Long?, close: () -> Unit) 
                 Modifier.weight(1f),
                 accent = FocuSenseGreen
             )
+        }
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
             NeonMetricCard(
-                "Movimento",
-                if (live.sensorsAvailable.accelerometer) "${live.motionIndex.toInt()}" else "N/D",
+                "Pickup",
+                runtime.pickupCount.toString(),
+                Modifier.weight(1f),
+                accent = FocuSensePurple
+            )
+            NeonMetricCard(
+                "Fuori app",
+                runtime.foregroundBreakCount.toString(),
                 Modifier.weight(1f),
                 accent = FocuSensePurple
             )
         }
 
-        NeonCard(
-            modifier = Modifier.fillMaxWidth(),
-            accent = if (live.deviceStable) FocuSenseGreen else FocuSensePurple
-        ) {
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text("Stato dispositivo", color = FocuSenseTextMuted)
-                Text(
-                    when {
-                        !live.sensorsAvailable.accelerometer -> "Sensore non disponibile"
-                        live.deviceStable -> "Stabile"
-                        else -> "In movimento"
-                    },
-                    color = if (live.deviceStable) FocuSenseGreen else FocuSensePurple
-                )
-            }
-            Text(
-                when {
-                    live.sensorsAvailable.light && live.lightLux < 150f ->
-                        "La luce è bassa rispetto a un ambiente ben illuminato."
-                    else -> "I dati rimangono sul dispositivo durante il monitoraggio."
-                },
-                style = MaterialTheme.typography.bodySmall,
-                color = FocuSenseTextMuted
-            )
-        }
-
-        Text(
-            "Il valore audio è relativo (dBFS), non è una misura fonica certificata.",
-            style = MaterialTheme.typography.bodySmall,
-            color = FocuSenseTextMuted
-        )
-
-        if (activeSessionId != null) {
-            NeonPrimaryButton(
-                text = "Termina sessione",
-                subtitle = "Salva il riepilogo e passa alla valutazione",
-                onClick = { vm.stopSession(context) },
-                modifier = Modifier.fillMaxWidth()
-            )
-        } else if (!showRating.value) {
-            NeonOutlineButton(
-                text = "Torna alla Home",
-                onClick = close,
-                modifier = Modifier.fillMaxWidth()
-            )
-        }
-    }
-
-    if (showRating.value) {
-        RatingDialog(
-            onSave = { focus, posture, note ->
-                sessionForRating.value?.let { vm.saveRatings(it, focus, posture, note) }
-                sessionForRating.value = null
-                showRating.value = false
-                close()
-            },
-            onSkip = {
-                sessionForRating.value = null
-                showRating.value = false
-                close()
-            }
+        NeonPrimaryButton(
+            text = "Termina sessione",
+            subtitle = "Il Core verrà salvato in base ai progressi raggiunti",
+            onClick = onStop,
+            modifier = Modifier.fillMaxWidth()
         )
     }
 }
 
 @Composable
-private fun RatingDialog(onSave: (Int, Int, String) -> Unit, onSkip: () -> Unit) {
+private fun SessionResultScreen(
+    session: FocusSessionEntity,
+    onContinue: () -> Unit
+) {
+    val stage = FocusCoreStage.fromKey(session.coreStageKey)
+    val status = SessionStatus.fromKey(session.sessionStatusKey)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            if (status == SessionStatus.COMPLETED) "FOCUS CORE CREATO" else "SESSIONE INTERROTTA",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (status == SessionStatus.COMPLETED) FocuSenseGreen else FocuSensePurple
+        )
+
+        Spacer(Modifier.height(18.dp))
+
+        FocusCoreVisual(
+            stage = stage,
+            integrity = session.integrityScore ?: 0,
+            size = 180.dp
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        Text(
+            stage.label,
+            style = MaterialTheme.typography.headlineMedium,
+            color = FocuSenseText
+        )
+        Text(
+            "${session.growthPoints} punti crescita",
+            color = FocuSenseTextMuted
+        )
+
+        Spacer(Modifier.height(22.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NeonMetricCard(
+                title = "Integrity",
+                value = session.integrityScore?.let { "$it%" } ?: "—",
+                modifier = Modifier.weight(1f),
+                accent = FocuSenseGreen
+            )
+            NeonMetricCard(
+                title = "Ambiente",
+                value = session.environmentScore?.let { "$it/100" } ?: "—",
+                modifier = Modifier.weight(1f),
+                accent = FocuSenseCyan
+            )
+            NeonMetricCard(
+                title = "Pickup",
+                value = session.pickupCount.toString(),
+                modifier = Modifier.weight(1f),
+                accent = FocuSensePurple
+            )
+        }
+
+        if (session.screenOffSeconds >= 60L) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Deep Focus · ${formatTimer(session.screenOffSeconds)} a schermo spento",
+                color = FocuSenseGreen,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        NeonPrimaryButton(
+            text = "Continua",
+            subtitle = "Dai un voto al focus per migliorare le tue Best Conditions",
+            onClick = onContinue,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun RatingDialog(
+    onSave: (Int, String) -> Unit,
+    onSkip: () -> Unit
+) {
     val focus = remember { mutableIntStateOf(4) }
-    val posture = remember { mutableIntStateOf(3) }
     val note = remember { mutableStateOf("") }
 
-    androidx.compose.material3.AlertDialog(
+    AlertDialog(
         onDismissRequest = onSkip,
-        title = { Text("Com'è andata?", color = FocuSenseText) },
+        title = {
+            Text(
+                "Quanto eri concentrato?",
+                color = FocuSenseText
+            )
+        },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                Text("Focus percepito: ${focus.intValue}/5")
+                Text(
+                    "Focus percepito: ${focus.intValue}/5",
+                    color = FocuSenseTextMuted
+                )
                 Slider(
                     value = focus.intValue.toFloat(),
                     onValueChange = { focus.intValue = it.toInt() },
-                    valueRange = 1f..5f,
-                    steps = 3
-                )
-                Text("Postura percepita: ${posture.intValue}/5")
-                Slider(
-                    value = posture.intValue.toFloat(),
-                    onValueChange = { posture.intValue = it.toInt() },
                     valueRange = 1f..5f,
                     steps = 3
                 )
@@ -220,7 +537,11 @@ private fun RatingDialog(onSave: (Int, Int, String) -> Unit, onSkip: () -> Unit)
             }
         },
         confirmButton = {
-            Button(onClick = { onSave(focus.intValue, posture.intValue, note.value) }) {
+            Button(
+                onClick = {
+                    onSave(focus.intValue, note.value)
+                }
+            ) {
                 Text("Salva")
             }
         },
@@ -228,4 +549,16 @@ private fun RatingDialog(onSave: (Int, Int, String) -> Unit, onSkip: () -> Unit)
             TextButton(onClick = onSkip) { Text("Salta") }
         }
     )
+}
+
+private fun formatTimer(seconds: Long): String {
+    val safe = seconds.coerceAtLeast(0L)
+    val hours = safe / 3600L
+    val minutes = (safe % 3600L) / 60L
+    val secs = safe % 60L
+    return if (hours > 0L) {
+        "%d:%02d:%02d".format(hours, minutes, secs)
+    } else {
+        "%02d:%02d".format(minutes, secs)
+    }
 }

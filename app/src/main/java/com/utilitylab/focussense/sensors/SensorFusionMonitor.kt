@@ -7,6 +7,7 @@ import android.hardware.SensorEventListener
 import android.hardware.SensorManager
 import com.utilitylab.focussense.domain.SensorAvailability
 import kotlin.math.abs
+import kotlin.math.max
 import kotlin.math.sqrt
 
 class SensorFusionMonitor(context: Context) : SensorEventListener {
@@ -24,6 +25,8 @@ class SensorFusionMonitor(context: Context) : SensorEventListener {
     @Volatile var faceUp: Boolean = true
         private set
 
+    @Volatile private var peakMotionIndex: Float = 0f
+
     val availability = SensorAvailability(
         microphone = true,
         light = light != null,
@@ -36,15 +39,23 @@ class SensorFusionMonitor(context: Context) : SensorEventListener {
 
     fun start() {
         light?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
-        accelerometer?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
-        gyroscope?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_GAME) }
+        accelerometer?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
+        gyroscope?.let { manager.registerListener(this, it, SensorManager.SENSOR_DELAY_NORMAL) }
     }
 
     fun stop() = manager.unregisterListener(this)
 
+    @Synchronized
+    fun consumePeakMotion(): Float {
+        val peak = max(peakMotionIndex, motionIndex)
+        peakMotionIndex = motionIndex
+        return peak
+    }
+
     override fun onSensorChanged(event: SensorEvent) {
         when (event.sensor.type) {
-            Sensor.TYPE_LIGHT -> lightLux = event.values.firstOrNull()?.coerceAtLeast(0f) ?: 0f
+            Sensor.TYPE_LIGHT -> lightLux =
+                event.values.firstOrNull()?.coerceAtLeast(0f) ?: 0f
             Sensor.TYPE_ACCELEROMETER -> handleAcceleration(event.values)
             Sensor.TYPE_GYROSCOPE -> handleGyroscope(event.values)
         }
@@ -54,9 +65,11 @@ class SensorFusionMonitor(context: Context) : SensorEventListener {
         if (v.size < 3) return
         val magnitude = sqrt(v[0] * v[0] + v[1] * v[1] + v[2] * v[2])
         val linearDeviation = abs(magnitude - SensorManager.GRAVITY_EARTH)
-        val instantIndex = (linearDeviation * 18f + smoothedGyro * 5f).coerceIn(0f, 100f)
+        val instantIndex = (linearDeviation * 18f + smoothedGyro * 5f)
+            .coerceIn(0f, 100f)
         smoothedMotion = smoothedMotion * 0.82f + instantIndex * 0.18f
         motionIndex = smoothedMotion.coerceIn(0f, 100f)
+        peakMotionIndex = max(peakMotionIndex, instantIndex)
         faceUp = v[2] > 5.8f
     }
 

@@ -13,6 +13,8 @@ data class FocusSessionEntity(
     val plannedDurationMinutes: Int,
     val actualDurationSeconds: Long = 0,
     val focusScore: Int? = null,
+    val environmentScore: Int? = null,
+    val integrityScore: Int? = null,
     val avgNoiseDbfs: Float? = null,
     val noiseStdDev: Float? = null,
     val avgLightLux: Float? = null,
@@ -27,7 +29,17 @@ data class FocusSessionEntity(
     val postureRating: Int? = null,
     val note: String = "",
     val contextKey: String = "WORK",
-    val tagsCsv: String = ""
+    val tagsCsv: String = "",
+    val strictnessKey: String = "STANDARD",
+    val sessionStatusKey: String = "LEGACY",
+    val foregroundBreakCount: Int = 0,
+    val backgroundSeconds: Long = 0,
+    val screenOffSeconds: Long = 0,
+    val unstableSeconds: Long = 0,
+    val unstablePercent: Float = 0f,
+    val pickupCount: Int = 0,
+    val growthPoints: Int = 0,
+    val coreStageKey: String = "NONE"
 )
 
 @Entity(

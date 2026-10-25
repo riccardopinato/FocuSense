@@ -21,9 +21,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.utilitylab.focussense.data.local.FocusSessionEntity
+import com.utilitylab.focussense.domain.FocusCoreStage
 import com.utilitylab.focussense.domain.SessionContext
+import com.utilitylab.focussense.domain.SessionStatus
 import com.utilitylab.focussense.domain.SessionTagCodec
 import com.utilitylab.focussense.ui.MainViewModel
+import com.utilitylab.focussense.ui.components.AdaptiveBannerAd
 import com.utilitylab.focussense.ui.components.NeonCard
 import com.utilitylab.focussense.ui.components.NeonPill
 import com.utilitylab.focussense.ui.components.NeonSectionHeader
@@ -31,6 +34,7 @@ import com.utilitylab.focussense.ui.components.SessionDetailDialog
 import com.utilitylab.focussense.ui.theme.FocuSenseCyan
 import com.utilitylab.focussense.ui.theme.FocuSenseDanger
 import com.utilitylab.focussense.ui.theme.FocuSenseGreen
+import com.utilitylab.focussense.ui.theme.FocuSensePurple
 import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 import java.time.Instant
@@ -41,6 +45,7 @@ import java.time.format.DateTimeFormatter
 fun HistoryScreen(vm: MainViewModel) {
     val sessions by vm.sessions.collectAsStateWithLifecycle()
     val detail by vm.selectedSession.collectAsStateWithLifecycle()
+    val monetization by vm.monetization.collectAsStateWithLifecycle()
     var contextFilter by remember { mutableStateOf<SessionContext?>(null) }
     var tagFilter by remember { mutableStateOf<String?>(null) }
 
@@ -122,6 +127,11 @@ fun HistoryScreen(vm: MainViewModel) {
             )
         }
 
+        AdaptiveBannerAd(
+            enabled = monetization.adsEnabled,
+            modifier = Modifier.fillMaxWidth()
+        )
+
         when {
             sessions.isEmpty() -> Text("Nessuna sessione salvata.", color = FocuSenseTextMuted)
             filtered.isEmpty() -> Text("Nessuna sessione corrisponde ai filtri.", color = FocuSenseTextMuted)
@@ -160,6 +170,8 @@ private fun HistoryCard(
         .format(formatter)
     val sessionContext = SessionContext.fromKey(session.contextKey)
     val tags = SessionTagCodec.decode(session.tagsCsv)
+    val coreStage = FocusCoreStage.fromKey(session.coreStageKey)
+    val status = SessionStatus.fromKey(session.sessionStatusKey)
 
     NeonCard(
         modifier = Modifier
@@ -191,14 +203,23 @@ private fun HistoryCard(
         }
 
         Text(
-            "Durata ${session.actualDurationSeconds / 60} min" +
-                (session.avgLightLux?.let { " · ${it.toInt()} lux" } ?: ""),
+            "Durata ${session.actualDurationSeconds / 60} min · ${status.name.lowercase()}",
             color = FocuSenseTextMuted
         )
 
+        if (coreStage != FocusCoreStage.NONE) {
+            Text(
+                "${coreStage.label} · crescita ${session.growthPoints}",
+                color = if (coreStage == FocusCoreStage.PRISM) FocuSenseGreen else FocuSensePurple,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+
         val metrics = buildList {
-            session.avgNoiseDbfs?.let { add("${it.toInt()} dBFS") }
-            session.stablePercent?.let { add("Stabilità ${it.toInt()}%") }
+            session.integrityScore?.let { add("Integrity $it%") }
+            session.environmentScore?.let { add("Ambiente $it/100") }
+            if (session.pickupCount > 0) add("${session.pickupCount} pickup")
+            if (session.foregroundBreakCount > 0) add("${session.foregroundBreakCount} uscite")
         }
         if (metrics.isNotEmpty()) {
             Text(metrics.joinToString(" · "), color = FocuSenseTextMuted)

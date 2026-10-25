@@ -8,6 +8,12 @@ val releaseKeystorePath = System.getenv("ANDROID_KEYSTORE_PATH")
 val releaseKeystorePassword = System.getenv("ANDROID_KEYSTORE_PASSWORD")
 val releaseKeyAlias = System.getenv("ANDROID_KEY_ALIAS")
 val releaseKeyPassword = System.getenv("ANDROID_KEY_PASSWORD")
+
+val admobProductionAppId = System.getenv("FOCUSENSE_ADMOB_APP_ID").orEmpty()
+val admobProductionBannerId = System.getenv("FOCUSENSE_ADMOB_BANNER_ID").orEmpty()
+val hasAdMobProduction = admobProductionAppId.isNotBlank() && admobProductionBannerId.isNotBlank()
+val admobTestAppId = "ca-app-pub-3940256099942544~3347511713"
+val admobTestBannerId = "ca-app-pub-3940256099942544/9214589741"
 val hasReleaseSigning = listOf(
     releaseKeystorePath,
     releaseKeystorePassword,
@@ -23,8 +29,26 @@ android {
         applicationId = "com.utilitylab.focussense"
         minSdk = 29
         targetSdk = 36
-        versionCode = 10
-        versionName = "0.8.2"
+        versionCode = 11
+        versionName = "1.0.0-rc1"
+
+        manifestPlaceholders["ADMOB_APP_ID"] =
+            if (hasAdMobProduction) admobProductionAppId else admobTestAppId
+        buildConfigField(
+            "String",
+            "ADMOB_BANNER_ID",
+            "\"${if (hasAdMobProduction) admobProductionBannerId else admobTestBannerId}\""
+        )
+        buildConfigField(
+            "boolean",
+            "ADMOB_PRODUCTION_CONFIGURED",
+            hasAdMobProduction.toString()
+        )
+        buildConfigField(
+            "String",
+            "PRO_PRODUCT_ID",
+            "\"focussense_pro_lifetime\""
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -41,7 +65,11 @@ android {
     }
 
     buildTypes {
+        debug {
+            buildConfigField("boolean", "USE_TEST_ADS", "true")
+        }
         release {
+            buildConfigField("boolean", "USE_TEST_ADS", "false")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(
@@ -61,7 +89,7 @@ android {
 
     buildFeatures {
         compose = true
-        buildConfig = false
+        buildConfig = true
     }
 
     packaging {
@@ -84,6 +112,7 @@ dependencies {
     implementation("androidx.activity:activity-compose:1.13.0")
     implementation("androidx.lifecycle:lifecycle-runtime-ktx:2.10.0")
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.10.0")
+    implementation("androidx.lifecycle:lifecycle-process:2.10.0")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.10.0")
     implementation("androidx.navigation:navigation-compose:2.9.8")
 
@@ -102,6 +131,10 @@ dependencies {
     implementation("androidx.credentials:credentials:1.6.0")
     implementation("androidx.credentials:credentials-play-services-auth:1.6.0")
     implementation("com.google.android.libraries.identity.googleid:googleid:1.1.1")
+
+    implementation("com.google.android.gms:play-services-ads:25.5.0")
+    implementation("com.google.android.ump:user-messaging-platform:4.0.0")
+    implementation("com.android.billingclient:billing:9.1.0")
 
     testImplementation("junit:junit:4.13.2")
     testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")

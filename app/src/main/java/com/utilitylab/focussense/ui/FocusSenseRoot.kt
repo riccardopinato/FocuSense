@@ -16,6 +16,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -36,8 +37,9 @@ import com.utilitylab.focussense.ui.screens.AnalyticsScreen
 import com.utilitylab.focussense.ui.screens.BestConditionsScreen
 import com.utilitylab.focussense.ui.screens.HistoryScreen
 import com.utilitylab.focussense.ui.screens.HomeScreen
+import com.utilitylab.focussense.ui.screens.OnboardingScreen
 import com.utilitylab.focussense.ui.screens.ProfileScreen
-import com.utilitylab.focussense.ui.screens.ProgressScreen
+import com.utilitylab.focussense.ui.screens.SanctuaryScreen
 import com.utilitylab.focussense.ui.screens.SessionScreen
 import com.utilitylab.focussense.ui.theme.FocuSenseCardBottom
 import com.utilitylab.focussense.ui.theme.FocuSenseCyan
@@ -52,16 +54,33 @@ private data class Tab(
 
 @Composable
 fun FocusSenseRoot(vm: MainViewModel = viewModel()) {
+    val prefs by vm.preferences.collectAsStateWithLifecycle()
+
+    if (!prefs.onboardingComplete) {
+        FocuSenseBackdrop {
+            OnboardingScreen(onDone = vm::completeOnboarding)
+        }
+        return
+    }
+
     val nav = rememberNavController()
     val activeSessionId by vm.activeSessionId.collectAsStateWithLifecycle()
     val backStack by nav.currentBackStackEntryAsState()
     val route = backStack?.destination?.route
 
+    LaunchedEffect(activeSessionId, route) {
+        if (activeSessionId != null && route != "session") {
+            nav.navigate("session") {
+                launchSingleTop = true
+            }
+        }
+    }
+
     val tabs = listOf(
         Tab("home", "Home", R.drawable.ic_nav_home),
         Tab("analytics", "Analisi", R.drawable.ic_nav_analytics),
+        Tab("sanctuary", "Sanctuary", R.drawable.ic_nav_progress),
         Tab("history", "Storico", R.drawable.ic_nav_history),
-        Tab("progress", "Progressi", R.drawable.ic_nav_progress),
         Tab("profile", "Profilo", R.drawable.ic_nav_profile)
     )
 
@@ -98,15 +117,19 @@ fun FocusSenseRoot(vm: MainViewModel = viewModel()) {
                 composable("analytics") {
                     AnalyticsScreen(
                         vm = vm,
-                        onOpenBestConditions = { nav.navigate("best_conditions") }
+                        onOpenBestConditions = {
+                            nav.navigate("best_conditions")
+                        }
                     )
                 }
+                composable("sanctuary") { SanctuaryScreen(vm) }
                 composable("history") { HistoryScreen(vm) }
-                composable("progress") { ProgressScreen(vm) }
                 composable("profile") { ProfileScreen(vm) }
                 composable("best_conditions") { BestConditionsScreen(vm) }
                 composable("session") {
-                    SessionScreen(vm, activeSessionId) { nav.popBackStack() }
+                    SessionScreen(vm, activeSessionId) {
+                        nav.popBackStack()
+                    }
                 }
             }
         }
@@ -125,7 +148,11 @@ private fun FocuSenseBottomBar(
             .padding(horizontal = 12.dp, vertical = 8.dp)
             .clip(RoundedCornerShape(26.dp))
             .background(FocuSenseCardBottom.copy(alpha = 0.96f))
-            .border(1.dp, FocuSenseOutline.copy(alpha = 0.55f), RoundedCornerShape(26.dp))
+            .border(
+                1.dp,
+                FocuSenseOutline.copy(alpha = 0.55f),
+                RoundedCornerShape(26.dp)
+            )
             .padding(horizontal = 4.dp, vertical = 6.dp)
     ) {
         Row(
@@ -147,21 +174,32 @@ private fun FocuSenseBottomBar(
                         Modifier
                             .clip(RoundedCornerShape(14.dp))
                             .background(
-                                if (selected) FocuSenseCyan.copy(alpha = 0.14f)
-                                else Color.Transparent
+                                if (selected) {
+                                    FocuSenseCyan.copy(alpha = 0.14f)
+                                } else {
+                                    Color.Transparent
+                                }
                             )
-                            .padding(horizontal = 12.dp, vertical = 5.dp)
+                            .padding(horizontal = 10.dp, vertical = 5.dp)
                     ) {
                         Icon(
                             painter = painterResource(tab.iconRes),
                             contentDescription = tab.label,
-                            tint = if (selected) FocuSenseCyan else FocuSenseTextMuted
+                            tint = if (selected) {
+                                FocuSenseCyan
+                            } else {
+                                FocuSenseTextMuted
+                            }
                         )
                     }
                     Text(
                         tab.label,
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (selected) FocuSenseCyan else FocuSenseTextMuted
+                        color = if (selected) {
+                            FocuSenseCyan
+                        } else {
+                            FocuSenseTextMuted
+                        }
                     )
                 }
             }

@@ -1,7 +1,9 @@
 package com.utilitylab.focussense.domain
 
 import com.utilitylab.focussense.data.local.FocusSessionEntity
-import java.time.*
+import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
 import kotlin.math.floor
 import kotlin.math.sqrt
 
@@ -16,8 +18,17 @@ object GamificationEngine {
         today: LocalDate = LocalDate.now(zoneId)
     ): GamificationProgress {
         val valid = sessions
-            .filter { it.endedAt != null && it.actualDurationSeconds >= MIN_VALID_SECONDS }
+            .filter {
+                it.endedAt != null &&
+                    it.actualDurationSeconds >= MIN_VALID_SECONDS &&
+                    SessionStatus.fromKey(it.sessionStatusKey) != SessionStatus.INTERRUPTED
+            }
             .sortedBy { it.startedAt }
+
+        val completed = valid.filter {
+            val status = SessionStatus.fromKey(it.sessionStatusKey)
+            status == SessionStatus.COMPLETED || status == SessionStatus.LEGACY
+        }
 
         val validMinutes = valid.sumOf {
             (it.actualDurationSeconds / 60L).toInt()
@@ -26,29 +37,45 @@ object GamificationEngine {
         val totalXp = valid.sumOf(::xpForSession)
         val level = levelProgress(totalXp)
 
-        val activeDays = valid
+        val activeDays = completed
             .map { dateOf(it.startedAt, zoneId) }
             .distinct()
             .sorted()
 
         val bestStreak = calculateBestStreak(activeDays)
         val currentStreak = calculateCurrentStreak(activeDays, today)
+        val weekly = weeklyProgress(completed, goals, zoneId, today)
 
-        val weekly = weeklyProgress(valid, goals, zoneId, today)
+        val cores = completed.filter {
+            FocusCoreStage.fromKey(it.coreStageKey) !in setOf(
+                FocusCoreStage.NONE,
+                FocusCoreStage.FRACTURED
+            )
+        }
 
         val unlocked = buildSet {
             if (valid.isNotEmpty()) add(ProgressBadge.FIRST_SESSION)
+            if (cores.isNotEmpty()) add(ProgressBadge.FIRST_CORE)
+            if (cores.any { FocusCoreStage.fromKey(it.coreStageKey) == FocusCoreStage.PRISM }) {
+                add(ProgressBadge.PRISM_CORE)
+            }
+            if (completed.any { it.screenOffSeconds >= 30 * 60L }) {
+                add(ProgressBadge.DEEP_FOCUS)
+            }
             if (bestStreak >= 3) add(ProgressBadge.THREE_DAY_STREAK)
             if (bestStreak >= 7) add(ProgressBadge.SEVEN_DAY_STREAK)
             if (valid.size >= 10) add(ProgressBadge.TEN_SESSIONS)
+            if (cores.size >= 10) add(ProgressBadge.TEN_CORES)
             if (valid.size >= 50) add(ProgressBadge.FIFTY_SESSIONS)
             if (validMinutes >= 500) add(ProgressBadge.FIVE_HUNDRED_MINUTES)
             if (
                 profile.level == CalibrationLevel.PERSONALIZED ||
                 profile.level == CalibrationLevel.STRONG
-            ) add(ProgressBadge.CALIBRATED)
+            ) {
+                add(ProgressBadge.CALIBRATED)
+            }
 
-            val contextCounts = valid
+            val contextCounts = completed
                 .groupingBy { SessionContext.fromKey(it.contextKey) }
                 .eachCount()
             if (contextCounts.count { it.value >= 2 } >= 4) {
@@ -63,6 +90,7 @@ object GamificationEngine {
         return GamificationProgress(
             validSessions = valid.size,
             totalValidMinutes = validMinutes,
+            totalCores = cores.size,
             currentStreak = currentStreak,
             bestStreak = bestStreak,
             level = level,
@@ -76,15 +104,20 @@ object GamificationEngine {
             return 0
         }
 
-        val minutes = (session.actualDurationSeconds / 60L)
+        if (session.growthPoints > 0) {
+            return session.growthPoints.coerceAtMost(120)
+        }
+
+        if (SessionStatus.fromKey(session.sessionStatusKey) == SessionStatus.ABANDONED) {
+            return ((session.actualDurationSeconds / 60L) / 5L)
+                .toInt()
+                .coerceAtMost(12)
+        }
+
+        // Legacy sessions keep a deterministic fallback without posture rewards.
+        return (session.actualDurationSeconds / 60L)
             .toInt()
             .coerceAtMost(60)
-
-        var xp = minutes
-        if ((session.selfFocusRating ?: 0) >= 4) xp += 5
-        if ((session.postureRating ?: 0) >= 4) xp += 3
-
-        return xp.coerceAtMost(68)
     }
 
     fun levelProgress(totalXp: Int): LevelProgress {
@@ -150,7 +183,7 @@ object GamificationEngine {
         zoneId: ZoneId,
         today: LocalDate
     ): WeeklyProgress {
-        val monday = today.with(DayOfWeek.MONDAY)
+        val monday = today.with(java.time.DayOfWeek.MONDAY)
         val nextMonday = monday.plusWeeks(1)
 
         val weeklySessions = valid.filter {

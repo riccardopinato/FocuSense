@@ -1,7 +1,6 @@
 package com.utilitylab.focussense.domain
 
 import com.utilitylab.focussense.data.local.FocusSessionEntity
-import kotlin.math.ceil
 import kotlin.math.roundToInt
 
 object BestConditionsEngine {
@@ -10,25 +9,28 @@ object BestConditionsEngine {
         sessions: List<FocusSessionEntity>,
         zoneProvider: (Long) -> Pair<DayPart, java.time.DayOfWeek>
     ): BestConditionsProfile {
-        val analyzed = sessions.filter {
+        val rated = sessions.filter {
             it.endedAt != null &&
-                it.focusScore != null &&
-                it.actualDurationSeconds >= 600
+                it.actualDurationSeconds >= 600 &&
+                it.selfFocusRating != null
         }
 
-        if (analyzed.size < 5) {
+        if (rated.size < 5) {
             return BestConditionsProfile(
                 ready = false,
-                analyzedSessions = analyzed.size,
+                analyzedSessions = rated.size,
                 messages = listOf(
-                    "Servono almeno 5 sessioni valide per stimare le condizioni migliori."
+                    "Valuta almeno 5 sessioni per stimare le condizioni associate al tuo focus percepito."
                 )
             )
         }
 
-        val selected = selectBest(analyzed)
-        val highlyRated = selected.filter { (it.selfFocusRating ?: 0) >= 4 }
-        val best = if (highlyRated.size >= 3) highlyRated else selected
+        val productive = rated.filter { (it.selfFocusRating ?: 0) >= 4 }
+        val best = if (productive.size >= 3) {
+            productive
+        } else {
+            rated.sortedByDescending { it.selfFocusRating ?: 0 }.take(3)
+        }
 
         val context = best
             .groupingBy { SessionContext.fromKey(it.contextKey) }
@@ -47,7 +49,9 @@ object BestConditionsEngine {
         val light = best.mapNotNull { it.avgLightLux }
         val motion = best.mapNotNull { it.avgMotionIndex }
         val stable = best.mapNotNull { it.stablePercent }
-        val interruptions = best.map { it.interruptionCount.toFloat() }
+        val interruptions = best.map {
+            (it.foregroundBreakCount + it.pickupCount).toFloat()
+        }
 
         val noiseRange = if (noise.size >= 3) {
             FloatRangeProfile(percentile(noise, .25f)!!, percentile(noise, .75f)!!)
@@ -63,38 +67,34 @@ object BestConditionsEngine {
             percentile(interruptions, .75f)?.roundToInt()
         } else null
 
-        val sensorMetrics = listOfNotNull(
-            noiseRange,
-            lightRange,
-            motionMax
-        ).size
-
         var confidence = 35
-        confidence += ((analyzed.size - 5).coerceAtMost(10) * 4)
-        if (best.size >= 5) confidence += 10
-        if (highlyRated.size >= 3) confidence += 10
-        if (sensorMetrics >= 3) confidence += 5
+        confidence += ((rated.size - 5).coerceAtMost(15) * 3)
+        confidence += (productive.size.coerceAtMost(8) * 3)
+        if (noiseRange != null && lightRange != null) confidence += 8
         confidence = confidence.coerceAtMost(100)
 
         val messages = buildList {
             context?.let {
-                add("Nelle sessioni migliori il contesto più frequente è ${it.label.lowercase()}.")
+                add("Tra le sessioni che hai valutato meglio ricorre più spesso il contesto ${it.label.lowercase()}.")
             }
             dayPart?.let {
-                add("La fascia oraria più rappresentata nelle sessioni migliori è ${it.label.lowercase()}.")
+                add("Tra le sessioni che hai valutato meglio ricorre più spesso la fascia ${it.label.lowercase()}.")
             }
             noiseRange?.let {
-                add("Nelle sessioni migliori il rumore medio ricade spesso tra ${it.min.roundToInt()} e ${it.max.roundToInt()} dBFS.")
+                add("Quando valuti il focus 4–5/5, il rumore medio ricade spesso tra ${it.min.roundToInt()} e ${it.max.roundToInt()} dBFS.")
             }
             lightRange?.let {
-                add("La luce media delle sessioni migliori si concentra spesso tra ${it.min.roundToInt()} e ${it.max.roundToInt()} lux.")
+                add("Quando valuti il focus 4–5/5, la luce media ricade spesso tra ${it.min.roundToInt()} e ${it.max.roundToInt()} lux.")
             }
-            add("Questi pattern descrivono associazioni nello storico e non dimostrano causalità.")
+            stableTypical?.let {
+                add("Nelle sessioni migliori il telefono resta stabile per circa ${it.roundToInt()}% del tempo.")
+            }
+            add("Sono associazioni del tuo storico personale: non dimostrano causalità.")
         }
 
         return BestConditionsProfile(
             ready = true,
-            analyzedSessions = analyzed.size,
+            analyzedSessions = rated.size,
             sampleSize = best.size,
             confidencePercent = confidence,
             strongestContext = context,
@@ -117,23 +117,17 @@ object BestConditionsEngine {
             DayPart.fromHour(zdt.hour) to zdt.dayOfWeek
         }
 
-    internal fun selectBest(
-        analyzed: List<FocusSessionEntity>
-    ): List<FocusSessionEntity> {
-        val sorted = analyzed.sortedByDescending { it.focusScore ?: 0 }
-
-        return if (analyzed.size >= 8) {
-            val count = ceil(analyzed.size * .35).toInt().coerceAtLeast(3)
-            sorted.take(count)
-        } else {
-            val median = percentile(
-                analyzed.mapNotNull { it.focusScore?.toFloat() },
-                .50f
-            ) ?: 0f
-
-            analyzed.filter { (it.focusScore ?: 0) >= median }
-        }
-    }
+    internal fun selectBest(analyzed: List<FocusSessionEntity>): List<FocusSessionEntity> =
+        analyzed
+            .filter { it.selfFocusRating != null }
+            .sortedWith(
+                compareByDescending<FocusSessionEntity> { it.selfFocusRating ?: 0 }
+                    .thenByDescending { it.startedAt }
+            )
+            .let { rated ->
+                val productive = rated.filter { (it.selfFocusRating ?: 0) >= 4 }
+                if (productive.size >= 3) productive else rated.take(3)
+            }
 
     fun environmentMatch(
         profile: BestConditionsProfile,
@@ -164,25 +158,15 @@ object BestConditionsEngine {
                 ).also { parts += it }
             } else null
 
-        val motionScore =
-            if (availability.accelerometer && profile.preferredMotionMax != null) {
-                upperBoundScore(
-                    live.motionIndex,
-                    profile.preferredMotionMax,
-                    50f
-                ).also { parts += it }
-            } else null
-
-        val total =
-            parts.takeIf { it.isNotEmpty() }
-                ?.average()
-                ?.roundToInt()
+        val total = parts.takeIf { it.isNotEmpty() }
+            ?.average()
+            ?.roundToInt()
 
         return EnvironmentMatch(
             score = total,
             noiseScore = noiseScore,
             lightScore = lightScore,
-            motionScore = motionScore
+            motionScore = null
         )
     }
 

@@ -19,9 +19,11 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.utilitylab.focussense.domain.DayPart
 import com.utilitylab.focussense.ui.MainViewModel
+import com.utilitylab.focussense.ui.components.AdaptiveBannerAd
 import com.utilitylab.focussense.ui.components.CalibrationCard
 import com.utilitylab.focussense.ui.components.FocusTrendChart
 import com.utilitylab.focussense.ui.components.NeonCard
+import com.utilitylab.focussense.ui.components.NeonMetricCard
 import com.utilitylab.focussense.ui.components.NeonSectionHeader
 import com.utilitylab.focussense.ui.components.TemporalHeatmap
 import com.utilitylab.focussense.ui.theme.FocuSenseCyan
@@ -38,14 +40,30 @@ fun AnalyticsScreen(
     val profile by vm.personalProfile.collectAsStateWithLifecycle()
     val temporal by vm.temporalInsights.collectAsStateWithLifecycle()
     val contexts by vm.contextAnalytics.collectAsStateWithLifecycle()
+    val monetization by vm.monetization.collectAsStateWithLifecycle()
 
     LaunchedEffect(Unit) { vm.refreshPersonalProfile() }
 
     val completed = sessions.filter { it.endedAt != null }
-    val avg = completed.mapNotNull { it.focusScore }
+    val environmentAvg = completed.mapNotNull { it.environmentScore }
         .takeIf { it.isNotEmpty() }
         ?.average()
         ?.toInt()
+    val integrityAvg = completed.mapNotNull { it.integrityScore }
+        .takeIf { it.isNotEmpty() }
+        ?.average()
+        ?.toInt()
+    val selfAvg = completed.mapNotNull { it.selfFocusRating }
+        .takeIf { it.isNotEmpty() }
+        ?.average()
+    val avgPickups = completed
+        .takeIf { it.isNotEmpty() }
+        ?.map { it.pickupCount }
+        ?.average()
+    val avgBreaks = completed
+        .takeIf { it.isNotEmpty() }
+        ?.map { it.foregroundBreakCount }
+        ?.average()
 
     LazyColumn(
         Modifier
@@ -56,8 +74,37 @@ fun AnalyticsScreen(
         item {
             NeonSectionHeader(
                 title = "Analisi",
-                subtitle = "Pattern, trend e condizioni ricorrenti"
+                subtitle = "Ambiente, disciplina e focus percepito restano separati"
             )
+        }
+
+        item {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                NeonMetricCard(
+                    title = "Integrity",
+                    value = integrityAvg?.let { "$it%" } ?: "—",
+                    modifier = Modifier.weight(1f),
+                    subtitle = "uso telefono",
+                    accent = FocuSenseGreen
+                )
+                NeonMetricCard(
+                    title = "Ambiente",
+                    value = environmentAvg?.let { "$it/100" } ?: "—",
+                    modifier = Modifier.weight(1f),
+                    subtitle = "luce + suono",
+                    accent = FocuSenseCyan
+                )
+                NeonMetricCard(
+                    title = "Percepito",
+                    value = selfAvg?.let { "%.1f/5".format(it) } ?: "—",
+                    modifier = Modifier.weight(1f),
+                    subtitle = "tuo rating",
+                    accent = FocuSensePurple
+                )
+            }
         }
 
         item {
@@ -73,11 +120,11 @@ fun AnalyticsScreen(
                     color = FocuSenseGreen
                 )
                 Text(
-                    "Scopri quali combinazioni di ambiente, contesto e orario ricorrono più spesso nelle tue sessioni migliori.",
+                    "Rumore, luce, contesto e orario vengono confrontati con le sessioni che tu hai valutato meglio, evitando di usare il punteggio automatico come prova di se stesso.",
                     color = FocuSenseTextMuted
                 )
                 Text(
-                    "APRI ANALISI →",
+                    "APRI PROFILO PERSONALE →",
                     style = MaterialTheme.typography.labelLarge,
                     color = FocuSenseCyan
                 )
@@ -89,20 +136,45 @@ fun AnalyticsScreen(
         item {
             NeonCard(
                 modifier = Modifier.fillMaxWidth(),
-                accent = FocuSenseCyan
+                accent = FocuSensePurple
             ) {
-                Text("Focus medio", color = FocuSenseTextMuted)
-                Text(
-                    avg?.let { "$it/100" } ?: "—",
-                    style = MaterialTheme.typography.displaySmall,
-                    color = FocuSenseCyan
+                NeonSectionHeader(
+                    title = "Disciplina telefono",
+                    subtitle = "Quanto il dispositivo interrompe le sessioni"
                 )
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Pickup medi", color = FocuSenseTextMuted)
+                    Text(
+                        avgPickups?.let { "%.1f".format(it) } ?: "—",
+                        color = FocuSensePurple
+                    )
+                }
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Text("Uscite dall'app medie", color = FocuSenseTextMuted)
+                    Text(
+                        avgBreaks?.let { "%.1f".format(it) } ?: "—",
+                        color = FocuSensePurple
+                    )
+                }
                 Text(
-                    "Descrive le condizioni rilevate dal telefono, non misura direttamente la produttività.",
+                    "Schermo spento durante il focus non viene conteggiato come distrazione.",
                     style = MaterialTheme.typography.bodySmall,
                     color = FocuSenseTextMuted
                 )
             }
+        }
+
+        item {
+            AdaptiveBannerAd(
+                enabled = monetization.adsEnabled,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
 
         if (completed.isNotEmpty()) {
@@ -113,7 +185,7 @@ fun AnalyticsScreen(
                 ) {
                     NeonSectionHeader(
                         title = "Trend sessioni",
-                        subtitle = "Evoluzione del Focus Score"
+                        subtitle = "Session Score = 60% Integrity + 40% ambiente"
                     )
                     FocusTrendChart(
                         completed.take(20).reversed(),
@@ -130,14 +202,17 @@ fun AnalyticsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 accent = FocuSenseGreen
             ) {
-                NeonSectionHeader(title = "Focus per contesto")
+                NeonSectionHeader(title = "Session Score per contesto")
                 contexts.buckets.forEach { bucket ->
                     Row(
                         Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text(bucket.context.label, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                bucket.context.label,
+                                style = MaterialTheme.typography.titleSmall
+                            )
                             Text(
                                 "${bucket.sessions} sessioni",
                                 style = MaterialTheme.typography.bodySmall,
@@ -159,7 +234,7 @@ fun AnalyticsScreen(
                 modifier = Modifier.fillMaxWidth(),
                 accent = FocuSenseCyan
             ) {
-                NeonSectionHeader(title = "Focus per fascia oraria")
+                NeonSectionHeader(title = "Session Score per fascia oraria")
                 DayPart.entries.forEach { part ->
                     val bucket = temporal.byDayPart[part]
                     Row(
@@ -167,7 +242,10 @@ fun AnalyticsScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column {
-                            Text(part.label, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                part.label,
+                                style = MaterialTheme.typography.titleSmall
+                            )
                             Text(
                                 "${bucket?.sessions ?: 0} sessioni",
                                 style = MaterialTheme.typography.bodySmall,
@@ -191,9 +269,12 @@ fun AnalyticsScreen(
             ) {
                 NeonSectionHeader(
                     title = "Heatmap settimanale",
-                    subtitle = "Quando le condizioni sono state migliori"
+                    subtitle = "Quando le sessioni hanno avuto score migliori"
                 )
-                TemporalHeatmap(temporal.heatmap, Modifier.fillMaxWidth())
+                TemporalHeatmap(
+                    temporal.heatmap,
+                    Modifier.fillMaxWidth()
+                )
             }
         }
 
@@ -201,9 +282,15 @@ fun AnalyticsScreen(
             item {
                 NeonCard(
                     modifier = Modifier.fillMaxWidth(),
-                    accent = if (trend.delta >= 0) FocuSenseGreen else FocuSensePurple
+                    accent = if (trend.delta >= 0) {
+                        FocuSenseGreen
+                    } else {
+                        FocuSensePurple
+                    }
                 ) {
-                    NeonSectionHeader(title = "Ultime 7 vs precedenti 7")
+                    NeonSectionHeader(
+                        title = "Ultime 7 vs precedenti 7"
+                    )
                     Text(
                         "${trend.recentAverage}/100 vs ${trend.previousAverage}/100",
                         style = MaterialTheme.typography.headlineSmall
@@ -211,43 +298,19 @@ fun AnalyticsScreen(
                     val prefix = if (trend.delta > 0) "+" else ""
                     Text(
                         "$prefix${trend.delta} punti",
-                        color = if (trend.delta >= 0) FocuSenseGreen else FocuSensePurple
+                        color = if (trend.delta >= 0) {
+                            FocuSenseGreen
+                        } else {
+                            FocuSensePurple
+                        }
                     )
-                }
-            }
-        }
-
-        if (contexts.messages.isNotEmpty()) {
-            item {
-                NeonCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    accent = FocuSenseGreen
-                ) {
-                    NeonSectionHeader(title = "Pattern per attività")
-                    contexts.messages.forEach {
-                        Text("• $it", color = FocuSenseTextMuted)
-                    }
-                }
-            }
-        }
-
-        if (temporal.messages.isNotEmpty()) {
-            item {
-                NeonCard(
-                    modifier = Modifier.fillMaxWidth(),
-                    accent = FocuSenseCyan
-                ) {
-                    NeonSectionHeader(title = "Pattern temporali")
-                    temporal.messages.forEach {
-                        Text("• $it", color = FocuSenseTextMuted)
-                    }
                 }
             }
         }
 
         item {
             Text(
-                "I confronti descrivono lo storico personale. FocuSense non interpreta le associazioni come prova di causalità.",
+                "Le associazioni descrivono soltanto il tuo storico. FocuSense non misura direttamente la produttività e non dimostra causalità.",
                 style = MaterialTheme.typography.bodySmall,
                 color = FocuSenseTextMuted
             )

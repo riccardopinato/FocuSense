@@ -1,5 +1,6 @@
 package com.utilitylab.focussense.ui
 
+import android.app.Activity
 import android.app.Application
 import android.content.Context
 import android.content.Intent
@@ -15,6 +16,7 @@ import com.utilitylab.focussense.domain.BestConditionsProfile
 import com.utilitylab.focussense.domain.ContextAnalytics
 import com.utilitylab.focussense.domain.ContextAnalyticsEngine
 import com.utilitylab.focussense.domain.EnvironmentMatch
+import com.utilitylab.focussense.domain.FocusStrictness
 import com.utilitylab.focussense.domain.GamificationEngine
 import com.utilitylab.focussense.domain.GamificationProgress
 import com.utilitylab.focussense.domain.LiveSensorSnapshot
@@ -24,6 +26,7 @@ import com.utilitylab.focussense.domain.SessionTagCodec
 import com.utilitylab.focussense.domain.TemporalInsights
 import com.utilitylab.focussense.domain.TemporalInsightsEngine
 import com.utilitylab.focussense.domain.WeeklyGoalSettings
+import com.utilitylab.focussense.monetization.MonetizationState
 import com.utilitylab.focussense.service.FocusSessionService
 import com.utilitylab.focussense.service.SensorStateBus
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -51,6 +54,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val live: StateFlow<LiveSensorSnapshot> = SensorStateBus.live
+    val runtime = SensorStateBus.runtime
+    val monetization: StateFlow<MonetizationState> = app.monetization.state
     val activeSessionId: StateFlow<Long?> = SensorStateBus.activeSessionId
     val sessionError: StateFlow<String?> = SensorStateBus.sessionError
 
@@ -121,7 +126,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     init {
         if (activeSessionId.value == null) {
             viewModelScope.launch {
-                app.repository.deleteUnfinishedSessions()
+                app.repository.recoverUnfinishedSessions()
                 refreshPersonalProfile()
             }
         }
@@ -148,6 +153,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         minutes: Int = preferences.value.defaultSessionMinutes,
         sessionContext: SessionContext = SessionContext.WORK,
         tags: List<String> = emptyList(),
+        strictness: FocusStrictness = preferences.value.defaultStrictness,
         onStarted: (Long) -> Unit = {}
     ) {
         if (activeSessionId.value != null) return
@@ -157,7 +163,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             val id = app.repository.createSession(
                 plannedMinutes = minutes,
                 context = sessionContext,
-                tags = SessionTagCodec.normalize(tags)
+                tags = SessionTagCodec.normalize(tags),
+                strictness = strictness
             )
             val p = preferences.value
             val intent = Intent(context, FocusSessionService::class.java).apply {
@@ -166,6 +173,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 putExtra(FocusSessionService.EXTRA_POSTURE_MINUTES, p.postureReminderMinutes)
                 putExtra(FocusSessionService.EXTRA_POSTURE_ENABLED, p.postureReminderEnabled)
                 putExtra(FocusSessionService.EXTRA_PLANNED_MINUTES, minutes)
+                putExtra(FocusSessionService.EXTRA_STRICTNESS, strictness.name)
             }
             runCatching { ContextCompat.startForegroundService(context, intent) }
                 .onSuccess { onStarted(id) }
@@ -214,6 +222,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch { app.preferences.setDefaultSessionMinutes(value) }
     }
 
+    fun setDefaultStrictness(value: FocusStrictness) {
+        viewModelScope.launch { app.preferences.setDefaultStrictness(value) }
+    }
+
+    fun setFocusDisplayEnabled(enabled: Boolean) {
+        viewModelScope.launch { app.preferences.setFocusDisplayEnabled(enabled) }
+    }
+
+    fun completeOnboarding() {
+        viewModelScope.launch { app.preferences.setOnboardingComplete(true) }
+    }
+
     fun setPostureReminder(enabled: Boolean, minutes: Int) {
         viewModelScope.launch { app.preferences.setPostureReminder(enabled, minutes) }
     }
@@ -237,6 +257,22 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
 
     fun clearGoogleProfile() {
         viewModelScope.launch { app.preferences.clearGoogleProfile() }
+    }
+
+    fun purchasePro(activity: Activity) {
+        app.monetization.purchasePro(activity)
+    }
+
+    fun restorePurchases() {
+        app.monetization.restorePurchases()
+    }
+
+    fun showPrivacyOptions(activity: Activity) {
+        app.monetization.showPrivacyOptions(activity)
+    }
+
+    fun refreshConsent(activity: Activity) {
+        app.monetization.refreshConsent(activity)
     }
 
     fun clearSessionError() {

@@ -27,8 +27,9 @@ interface FocusSessionDao {
     @Query("DELETE FROM focus_sessions WHERE id = :id")
     suspend fun deleteById(id: Long)
 
-    @Query("DELETE FROM focus_sessions WHERE endedAt IS NULL")
-    suspend fun deleteUnfinished(): Int
+    @Query("SELECT * FROM focus_sessions WHERE endedAt IS NULL ORDER BY startedAt ASC")
+    suspend fun getUnfinished(): List<FocusSessionEntity>
+
 }
 
 @Dao
@@ -44,6 +45,9 @@ interface SensorSampleDao {
 
     @Query("SELECT * FROM sensor_samples WHERE sessionId = :sessionId ORDER BY timestamp ASC")
     fun observeForSession(sessionId: Long): Flow<List<SensorSampleEntity>>
+
+    @Query("SELECT MAX(timestamp) FROM sensor_samples WHERE sessionId = :sessionId")
+    suspend fun lastTimestamp(sessionId: Long): Long?
 
     @Query("DELETE FROM sensor_samples WHERE timestamp < :cutoff")
     suspend fun deleteOlderThan(cutoff: Long): Int

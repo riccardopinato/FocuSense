@@ -58,7 +58,7 @@ object ContextAnalyticsEngine {
             val reliable = buckets.filter { it.sessions >= 3 && it.averageFocusScore != null }
 
             reliable.maxByOrNull { it.averageFocusScore ?: 0 }?.let { best ->
-                add("Nel contesto ${best.context.label.lowercase()} hai ${best.sessions} sessioni con Focus Score medio ${best.averageFocusScore}/100.")
+                add("Nel contesto ${best.context.label.lowercase()} hai ${best.sessions} sessioni con Session Score medio ${best.averageFocusScore}/100.")
             }
 
             if (reliable.size >= 2) {
