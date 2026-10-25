@@ -19,9 +19,11 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material3.LocalContentColor
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -44,6 +46,7 @@ import com.utilitylab.focussense.ui.theme.FocuSenseNavy
 import com.utilitylab.focussense.ui.theme.FocuSenseNavySoft
 import com.utilitylab.focussense.ui.theme.FocuSenseOutline
 import com.utilitylab.focussense.ui.theme.FocuSensePurple
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 import kotlin.math.cos
 import kotlin.math.min
@@ -79,7 +82,9 @@ fun FocuSenseBackdrop(
                 center = Offset(size.width * 0.08f, size.height * 0.62f)
             )
         }
-        content()
+        CompositionLocalProvider(LocalContentColor provides FocuSenseTextMuted) {
+            content()
+        }
     }
 }
 
@@ -91,7 +96,8 @@ fun NeonCard(
     content: @Composable ColumnScope.() -> Unit
 ) {
     val shape = RoundedCornerShape(22.dp)
-    Column(
+    CompositionLocalProvider(LocalContentColor provides FocuSenseTextMuted) {
+        Column(
         modifier = modifier
             .clip(shape)
             .background(
@@ -106,7 +112,8 @@ fun NeonCard(
             .padding(contentPadding),
         verticalArrangement = Arrangement.spacedBy(8.dp),
         content = content
-    )
+        )
+    }
 }
 
 @Composable
@@ -137,7 +144,7 @@ fun NeonMetricCard(
         Text(
             value,
             style = MaterialTheme.typography.titleLarge,
-            color = MaterialTheme.colorScheme.onSurface
+            color = FocuSenseTextMuted
         )
         subtitle?.let {
             Text(
@@ -214,7 +221,7 @@ fun NeonOutlineButton(
         Text(
             text,
             style = MaterialTheme.typography.labelLarge,
-            color = if (enabled) MaterialTheme.colorScheme.onSurface else FocuSenseTextMuted
+            color = FocuSenseTextMuted
         )
     }
 }
@@ -347,7 +354,8 @@ fun FocusScoreRing(
             Text(
                 safe.toString(),
                 style = MaterialTheme.typography.displayMedium,
-                fontWeight = FontWeight.Bold
+                fontWeight = FontWeight.Bold,
+                color = FocuSenseTextMuted
             )
             Text(
                 "/100",
@@ -374,7 +382,11 @@ fun NeonSectionHeader(
     subtitle: String? = null
 ) {
     Column(modifier, verticalArrangement = Arrangement.spacedBy(3.dp)) {
-        Text(title, style = MaterialTheme.typography.headlineSmall)
+        Text(
+            title,
+            style = MaterialTheme.typography.headlineSmall,
+            color = FocuSenseText
+        )
         subtitle?.let {
             Text(
                 it,
