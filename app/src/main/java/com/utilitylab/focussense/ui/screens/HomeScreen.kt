@@ -22,9 +22,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.utilitylab.focussense.domain.FocusCoreStage
+import com.utilitylab.focussense.domain.FocusStrictness
 import com.utilitylab.focussense.domain.SessionContext
 import com.utilitylab.focussense.domain.SessionTagCodec
+import com.utilitylab.focussense.domain.SessionStatus
 import com.utilitylab.focussense.ui.MainViewModel
+import com.utilitylab.focussense.ui.components.AdaptiveBannerAd
+import com.utilitylab.focussense.ui.components.FocusCoreVisual
 import com.utilitylab.focussense.ui.components.FocusScoreRing
 import com.utilitylab.focussense.ui.components.FocusTrendChart
 import com.utilitylab.focussense.ui.components.NeonCard
@@ -33,7 +38,6 @@ import com.utilitylab.focussense.ui.components.NeonOutlineButton
 import com.utilitylab.focussense.ui.components.NeonPill
 import com.utilitylab.focussense.ui.components.NeonSectionHeader
 import com.utilitylab.focussense.ui.components.PermissionAwareStartButton
-import com.utilitylab.focussense.ui.components.ProgressCard
 import com.utilitylab.focussense.ui.components.SessionSetupDialog
 import com.utilitylab.focussense.ui.theme.FocuSenseCyan
 import com.utilitylab.focussense.ui.theme.FocuSenseDanger
@@ -47,6 +51,7 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
     val sessions by vm.sessions.collectAsStateWithLifecycle()
     val prefs by vm.preferences.collectAsStateWithLifecycle()
     val progress by vm.gamificationProgress.collectAsStateWithLifecycle()
+    val monetization by vm.monetization.collectAsStateWithLifecycle()
     val active by vm.activeSessionId.collectAsStateWithLifecycle()
     val error by vm.sessionError.collectAsStateWithLifecycle()
     val localContext = LocalContext.current
@@ -54,11 +59,15 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
 
     val completed = remember(sessions) {
         sessions
-            .filter { it.focusScore != null }
+            .filter { it.endedAt != null }
             .sortedByDescending { it.startedAt }
     }
     val recent = completed.take(7)
-    val avg = if (recent.isEmpty()) 0 else recent.mapNotNull { it.focusScore }.average().toInt()
+    val avg = recent.mapNotNull { it.focusScore }
+        .takeIf { it.isNotEmpty() }
+        ?.average()
+        ?.toInt()
+        ?: 0
     val latest = completed.firstOrNull()
     val recentTags = remember(sessions) {
         sessions
@@ -81,7 +90,7 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
                 color = FocuSenseText
             )
             Text(
-                "Il tuo ambiente, tradotto in condizioni di focus.",
+                "Lascia in pace il telefono. Scopri quando lavori meglio.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = FocuSenseTextMuted
             )
@@ -112,41 +121,43 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
         ) {
             FocusScoreRing(
                 score = avg,
-                title = if (completed.isEmpty()) "Pronto a iniziare" else "Focus Score",
+                title = if (completed.isEmpty()) "Pronto a iniziare" else "Session Score",
                 subtitle = when {
-                    completed.isEmpty() -> "Completa la prima sessione"
-                    avg >= 75 -> "Condizioni recenti favorevoli"
-                    avg >= 50 -> "Condizioni recenti discrete"
-                    else -> "C'è margine per migliorare l'ambiente"
+                    completed.isEmpty() -> "Crea il tuo primo Focus Core"
+                    avg >= 85 -> "Ottimo equilibrio tra ambiente e disciplina"
+                    avg >= 70 -> "Buona sessione recente"
+                    else -> "Puoi proteggere meglio il tuo focus"
                 }
             )
         }
 
-        Row(
-            Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            NeonMetricCard(
-                title = "Rumore",
-                value = latest?.avgNoiseDbfs?.let { "${it.toInt()} dBFS" } ?: "—",
-                subtitle = "ultimo dato",
-                accent = FocuSenseCyan,
-                modifier = Modifier.weight(1f)
-            )
-            NeonMetricCard(
-                title = "Luce",
-                value = latest?.avgLightLux?.let { "${it.toInt()} lux" } ?: "—",
-                subtitle = "ultimo dato",
-                accent = FocuSenseGreen,
-                modifier = Modifier.weight(1f)
-            )
-            NeonMetricCard(
-                title = "Stabilità",
-                value = latest?.stablePercent?.let { "${it.toInt()}%" } ?: "—",
-                subtitle = "telefono",
-                accent = FocuSensePurple,
-                modifier = Modifier.weight(1f)
-            )
+        if (latest != null) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                NeonMetricCard(
+                    title = "Integrity",
+                    value = latest.integrityScore?.let { "$it%" } ?: "—",
+                    subtitle = "telefono",
+                    accent = FocuSenseGreen,
+                    modifier = Modifier.weight(1f)
+                )
+                NeonMetricCard(
+                    title = "Ambiente",
+                    value = latest.environmentScore?.let { "$it/100" } ?: "—",
+                    subtitle = "luce + suono",
+                    accent = FocuSenseCyan,
+                    modifier = Modifier.weight(1f)
+                )
+                NeonMetricCard(
+                    title = "Pickup",
+                    value = latest.pickupCount.toString(),
+                    subtitle = "ultima sessione",
+                    accent = FocuSensePurple,
+                    modifier = Modifier.weight(1f)
+                )
+            }
         }
 
         NeonCard(
@@ -154,8 +165,8 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
             accent = FocuSenseCyan
         ) {
             NeonSectionHeader(
-                title = if (active != null) "Sessione in corso" else "Nuova sessione",
-                subtitle = "Durata predefinita ${prefs.defaultSessionMinutes} min"
+                title = if (active != null) "Focus in corso" else "Nuova sessione",
+                subtitle = "${prefs.defaultSessionMinutes} min · ${prefs.defaultStrictness.label}"
             )
 
             Row(
@@ -182,7 +193,7 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
             } else {
                 PermissionAwareStartButton(
                     enabled = true,
-                    label = "Avvia sessione",
+                    label = "Avvia Focus Core",
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     showSessionSetup = true
@@ -190,7 +201,55 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
             }
         }
 
-        ProgressCard(progress)
+        latest?.let { session ->
+            val stage = FocusCoreStage.fromKey(session.coreStageKey)
+            val status = SessionStatus.fromKey(session.sessionStatusKey)
+            if (stage != FocusCoreStage.NONE) {
+                NeonCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = if (status == SessionStatus.COMPLETED) {
+                        FocuSenseGreen
+                    } else {
+                        FocuSensePurple
+                    }
+                ) {
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(Modifier.weight(1f)) {
+                            NeonSectionHeader(
+                                title = "Ultimo Focus Core",
+                                subtitle = stage.label
+                            )
+                            Text(
+                                "${session.growthPoints} crescita · ${session.actualDurationSeconds / 60} min",
+                                color = FocuSenseTextMuted
+                            )
+                        }
+                        FocusCoreVisual(
+                            stage = stage,
+                            integrity = session.integrityScore ?: 0
+                        )
+                    }
+                }
+            }
+        }
+
+        NeonCard(
+            modifier = Modifier.fillMaxWidth(),
+            accent = FocuSenseGreen
+        ) {
+            NeonSectionHeader(
+                title = "Sanctuary",
+                subtitle = "${progress.totalCores} Core · livello ${progress.level.level}"
+            )
+            Text(
+                "Ogni sessione completata lascia un Core permanente. Più proteggi il focus, più raro sarà il risultato.",
+                color = FocuSenseTextMuted
+            )
+        }
 
         if (completed.isNotEmpty()) {
             NeonCard(
@@ -210,23 +269,41 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
             }
         }
 
+        AdaptiveBannerAd(
+            enabled = monetization.adsEnabled,
+            modifier = Modifier.fillMaxWidth()
+        )
+
+        if (!monetization.premium) {
+            Text(
+                "La sessione di focus non contiene pubblicità.",
+                style = MaterialTheme.typography.bodySmall,
+                color = FocuSenseTextMuted
+            )
+        }
+
         Spacer(Modifier.height(12.dp))
     }
 
     if (showSessionSetup) {
         SessionSetupDialog(
             defaultMinutes = prefs.defaultSessionMinutes,
+            defaultStrictness = prefs.defaultStrictness,
             defaultContext = SessionContext.WORK,
             recentTags = recentTags,
             onDismiss = { showSessionSetup = false },
-            onStart = { minutes, sessionContext, tags ->
+            onStart = { minutes, sessionContext, tags, strictness ->
                 showSessionSetup = false
+                vm.setDefaultStrictness(strictness)
                 vm.startSession(
                     context = localContext,
                     minutes = minutes,
                     sessionContext = sessionContext,
-                    tags = tags
-                ) { openSession() }
+                    tags = tags,
+                    strictness = strictness
+                ) {
+                    openSession()
+                }
             }
         )
     }
