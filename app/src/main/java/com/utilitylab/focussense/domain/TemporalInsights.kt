@@ -136,7 +136,7 @@ object TemporalInsightsEngine {
             val best = reliableParts.maxByOrNull { it.value.averageFocusScore ?: 0 }
             val worst = reliableParts.minByOrNull { it.value.averageFocusScore ?: 0 }
             if (best != null) {
-                add("Nelle ${best.key.label.lowercase()} hai ${best.value.sessions} sessioni con Focus Score medio ${best.value.averageFocusScore}/100.")
+                add("Nelle ${best.key.label.lowercase()} hai ${best.value.sessions} sessioni con Session Score medio ${best.value.averageFocusScore}/100.")
             }
             if (best != null && worst != null && best.key != worst.key) {
                 val diff = (best.value.averageFocusScore ?: 0) - (worst.value.averageFocusScore ?: 0)
@@ -148,7 +148,7 @@ object TemporalInsightsEngine {
 
         val reliableDays = byDay.filterValues { it.sessions >= 3 && it.averageFocusScore != null }
         reliableDays.maxByOrNull { it.value.averageFocusScore ?: 0 }?.let {
-            add("${italianDay(it.key)} è il giorno con il punteggio medio più alto tra quelli con almeno 3 sessioni (${it.value.averageFocusScore}/100).")
+            add("${italianDay(it.key)} è il giorno con il Session Score medio più alto tra quelli con almeno 3 sessioni (${it.value.averageFocusScore}/100).")
         }
 
         trend?.let {
