@@ -1,0 +1,139 @@
+name: Android CI & Signed Release
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v5
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Ensure Android API 37 SDK
+        shell: bash
+        run: |
+          set -euo pipefail
+          SDKMANAGER="$(find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -n 1)"
+          test -n "$SDKMANAGER"
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" "platforms;android-37" "build-tools;36.0.0" "platform-tools"
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Verify wrapper
+        shell: bash
+        run: |
+          chmod +x gradlew scripts/size-report.sh
+          ./gradlew --version
+
+      - name: Configure permanent release signing
+        if: github.event_name != 'pull_request'
+        shell: bash
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          test -n "$KEYSTORE_BASE64"
+          test -n "$KEYSTORE_PASSWORD"
+          test -n "$KEY_ALIAS"
+          test -n "$KEY_PASSWORD"
+
+          KEYSTORE_PATH="$RUNNER_TEMP/focusense-release.jks"
+          printf '%s' "$KEYSTORE_BASE64" | base64 --decode > "$KEYSTORE_PATH"
+
+          echo "ANDROID_KEYSTORE_PATH=$KEYSTORE_PATH" >> "$GITHUB_ENV"
+          echo "ANDROID_KEYSTORE_PASSWORD=$KEYSTORE_PASSWORD" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_ALIAS=$KEY_ALIAS" >> "$GITHUB_ENV"
+          echo "ANDROID_KEY_PASSWORD=$KEY_PASSWORD" >> "$GITHUB_ENV"
+
+      - name: Unit tests
+        run: ./gradlew :app:testDebugUnitTest --stacktrace
+
+      - name: Android test compile
+        run: ./gradlew :app:compileDebugAndroidTestKotlin --stacktrace
+
+      - name: Release lint
+        run: ./gradlew :app:lintRelease --stacktrace
+
+      - name: Build debug
+        run: ./gradlew :app:assembleDebug --stacktrace
+
+      - name: Build release APK and AAB
+        run: ./gradlew :app:assembleRelease :app:bundleRelease --stacktrace
+
+      - name: Size report and budget
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          test -n "$RELEASE_APK"
+          scripts/size-report.sh "$RELEASE_APK"
+
+          {
+            echo "## FocuSense artifact sizes"
+            echo
+            echo "| Artifact | Bytes | MiB |"
+            echo "|---|---:|---:|"
+            for FILE in               app/build/outputs/apk/debug/*.apk               app/build/outputs/apk/release/*.apk               app/build/outputs/bundle/release/*.aab
+            do
+              [ -f "$FILE" ] || continue
+              BYTES="$(stat -c%s "$FILE")"
+              MIB="$(awk "BEGIN {printf \"%.2f\", $BYTES/1048576}")"
+              echo "| `$(basename "$FILE")` | $BYTES | $MIB |"
+            done
+          } >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Verify release certificate
+        if: github.event_name != 'pull_request'
+        shell: bash
+        run: |
+          set -euo pipefail
+          RELEASE_APK="$(find app/build/outputs/apk/release -maxdepth 1 -type f -name '*.apk' | head -n 1)"
+          APKSIGNER="$(find "$ANDROID_HOME/build-tools" -type f -name apksigner | sort -V | tail -n 1)"
+          "$APKSIGNER" verify --verbose --print-certs "$RELEASE_APK"
+
+      - name: Prepare artifacts
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p dist
+          cp app/build/outputs/apk/debug/*.apk dist/
+          cp app/build/outputs/apk/release/*.apk dist/
+          cp app/build/outputs/bundle/release/*.aab dist/
+          (
+            cd dist
+            sha256sum * > SHA256SUMS.txt
+            ls -lh > FILE_SIZES.txt
+          )
+
+      - name: Upload Android artifacts
+        uses: actions/upload-artifact@v7
+        with:
+          name: FocuSense-android-${{ github.sha }}
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
