@@ -315,9 +315,6 @@ class FocusRepository(private val db: AppDatabase) {
         return unfinished.size
     }
 
-    suspend fun deleteUnfinishedSessions(): Int =
-        db.focusSessionDao().deleteUnfinished()
-
     suspend fun deleteSession(id: Long) =
         db.focusSessionDao().deleteById(id)
 }
