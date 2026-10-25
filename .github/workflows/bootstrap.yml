@@ -31,9 +31,15 @@ jobs:
           test -f app/build.gradle.kts
           test -f settings.gradle.kts
 
-          # FocuSense targets the current stable Play baseline.
+          # Stable Android target for current Play requirements.
           sed -i 's/compileSdk = 37/compileSdk = 36/' app/build.gradle.kts
           sed -i 's/targetSdk = 37/targetSdk = 36/' app/build.gradle.kts
+
+          # AGP 9 built-in Kotlin requires a current KSP line.
+          sed -i 's/id("com.google.devtools.ksp") version "2.2.10-2.0.2"/id("com.google.devtools.ksp") version "2.3.10"/' build.gradle.kts
+
+          # Obsolete AGP compatibility property.
+          sed -i '/android.defaults.buildfeatures.resvalues=true/d' gradle.properties
 
       - name: Set up JDK 17
         uses: actions/setup-java@v5
