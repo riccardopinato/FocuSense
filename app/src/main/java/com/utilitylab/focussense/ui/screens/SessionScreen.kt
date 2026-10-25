@@ -37,8 +37,13 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.core.view.WindowCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.utilitylab.focussense.data.local.FocusSessionEntity
+import com.utilitylab.focussense.domain.FocusCoreStage
 import com.utilitylab.focussense.domain.FocusRuntimeSnapshot
+import com.utilitylab.focussense.domain.SessionStatus
 import com.utilitylab.focussense.domain.LiveSensorSnapshot
 import com.utilitylab.focussense.ui.MainViewModel
 import com.utilitylab.focussense.ui.components.FocusCoreVisual
@@ -69,6 +74,7 @@ fun SessionScreen(
     val runtime by vm.runtime.collectAsStateWithLifecycle()
     val prefs by vm.preferences.collectAsStateWithLifecycle()
     val error by vm.sessionError.collectAsStateWithLifecycle()
+    val sessions by vm.sessions.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val activity = context as? Activity
     val sessionForRating = remember { mutableStateOf<Long?>(activeSessionId) }
@@ -78,9 +84,15 @@ fun SessionScreen(
     LaunchedEffect(activeSessionId, error) {
         when {
             error != null -> showRating.value = false
-            activeSessionId != null -> sessionForRating.value = activeSessionId
-            sessionForRating.value != null -> showRating.value = true
+            activeSessionId != null -> {
+                sessionForRating.value = activeSessionId
+                showRating.value = false
+            }
         }
+    }
+
+    val completedSession = sessionForRating.value?.let { sessionId ->
+        sessions.firstOrNull { it.id == sessionId && it.endedAt != null }
     }
 
     BackHandler(enabled = activeSessionId != null) {
@@ -141,14 +153,21 @@ fun SessionScreen(
             )
         }
 
+        completedSession != null && !showRating.value -> {
+            SessionResultScreen(
+                session = completedSession,
+                onContinue = { showRating.value = true }
+            )
+        }
+
         !showRating.value -> {
             Box(
                 Modifier.fillMaxSize(),
                 contentAlignment = Alignment.Center
             ) {
-                NeonOutlineButton(
-                    text = "Torna alla Home",
-                    onClick = close
+                Text(
+                    "Finalizzo la sessione…",
+                    color = FocuSenseTextMuted
                 )
             }
         }
@@ -186,16 +205,23 @@ private fun FocusDisplayWindowEffect(
         val window = activity.window
         val previousBrightness = window.attributes.screenBrightness
 
+        val insetsController =
+            WindowCompat.getInsetsController(window, window.decorView)
+
         window.addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
         window.attributes = window.attributes.apply {
             screenBrightness = 0.08f
         }
+        insetsController.hide(WindowInsetsCompat.Type.systemBars())
+        insetsController.systemBarsBehavior =
+            androidx.core.view.WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE
 
         onDispose {
             window.clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON)
             window.attributes = window.attributes.apply {
                 screenBrightness = previousBrightness
             }
+            insetsController.show(WindowInsetsCompat.Type.systemBars())
         }
     }
 }
@@ -383,6 +409,93 @@ private fun DetailedFocusDisplay(
             text = "Termina sessione",
             subtitle = "Il Core verrà salvato in base ai progressi raggiunti",
             onClick = onStop,
+            modifier = Modifier.fillMaxWidth()
+        )
+    }
+}
+
+@Composable
+private fun SessionResultScreen(
+    session: FocusSessionEntity,
+    onContinue: () -> Unit
+) {
+    val stage = FocusCoreStage.fromKey(session.coreStageKey)
+    val status = SessionStatus.fromKey(session.sessionStatusKey)
+
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 24.dp, vertical = 20.dp),
+        verticalArrangement = Arrangement.Center,
+        horizontalAlignment = Alignment.CenterHorizontally
+    ) {
+        Text(
+            if (status == SessionStatus.COMPLETED) "FOCUS CORE CREATO" else "SESSIONE INTERROTTA",
+            style = MaterialTheme.typography.labelLarge,
+            color = if (status == SessionStatus.COMPLETED) FocuSenseGreen else FocuSensePurple
+        )
+
+        Spacer(Modifier.height(18.dp))
+
+        FocusCoreVisual(
+            stage = stage,
+            integrity = session.integrityScore ?: 0,
+            size = 180.dp
+        )
+
+        Spacer(Modifier.height(16.dp))
+
+        Text(
+            stage.label,
+            style = MaterialTheme.typography.headlineMedium,
+            color = FocuSenseText
+        )
+        Text(
+            "${session.growthPoints} punti crescita",
+            color = FocuSenseTextMuted
+        )
+
+        Spacer(Modifier.height(22.dp))
+
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NeonMetricCard(
+                title = "Integrity",
+                value = session.integrityScore?.let { "$it%" } ?: "—",
+                modifier = Modifier.weight(1f),
+                accent = FocuSenseGreen
+            )
+            NeonMetricCard(
+                title = "Ambiente",
+                value = session.environmentScore?.let { "$it/100" } ?: "—",
+                modifier = Modifier.weight(1f),
+                accent = FocuSenseCyan
+            )
+            NeonMetricCard(
+                title = "Pickup",
+                value = session.pickupCount.toString(),
+                modifier = Modifier.weight(1f),
+                accent = FocuSensePurple
+            )
+        }
+
+        if (session.screenOffSeconds >= 60L) {
+            Spacer(Modifier.height(12.dp))
+            Text(
+                "Deep Focus · ${formatTimer(session.screenOffSeconds)} a schermo spento",
+                color = FocuSenseGreen,
+                style = MaterialTheme.typography.labelLarge
+            )
+        }
+
+        Spacer(Modifier.height(24.dp))
+
+        NeonPrimaryButton(
+            text = "Continua",
+            subtitle = "Dai un voto al focus per migliorare le tue Best Conditions",
+            onClick = onContinue,
             modifier = Modifier.fillMaxWidth()
         )
     }
