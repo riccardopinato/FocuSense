@@ -62,7 +62,7 @@ class TemporalInsightsTest {
             session(day = 15, hour = 8, score = 90)
         )
         val result = TemporalInsightsEngine.build(data, zone)
-        assertTrue(result.messages.none { it.contains("mattina", ignoreCase = true) && it.contains("Focus Score medio") })
+        assertTrue(result.messages.none { it.contains("mattina", ignoreCase = true) && it.contains("Session Score medio") })
     }
 
     @Test
