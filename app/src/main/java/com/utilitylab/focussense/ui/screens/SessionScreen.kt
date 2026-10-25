@@ -34,6 +34,7 @@ import com.utilitylab.focussense.ui.theme.FocuSenseCyan
 import com.utilitylab.focussense.ui.theme.FocuSenseDanger
 import com.utilitylab.focussense.ui.theme.FocuSenseGreen
 import com.utilitylab.focussense.ui.theme.FocuSensePurple
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 
 @Composable
@@ -69,7 +70,7 @@ fun SessionScreen(vm: MainViewModel, activeSessionId: Long?, close: () -> Unit) 
                 modifier = Modifier.fillMaxWidth(),
                 accent = FocuSenseDanger
             ) {
-                Text("Sessione interrotta", style = MaterialTheme.typography.titleLarge)
+                Text("Sessione interrotta", style = MaterialTheme.typography.titleLarge, color = FocuSenseText)
                 Text(error ?: "Errore sconosciuto", color = FocuSenseTextMuted)
                 NeonPrimaryButton(
                     text = "Torna alla Home",
@@ -194,7 +195,7 @@ private fun RatingDialog(onSave: (Int, Int, String) -> Unit, onSkip: () -> Unit)
 
     androidx.compose.material3.AlertDialog(
         onDismissRequest = onSkip,
-        title = { Text("Com'è andata?") },
+        title = { Text("Com'è andata?", color = FocuSenseText) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Focus percepito: ${focus.intValue}/5")
