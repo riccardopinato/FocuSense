@@ -18,6 +18,7 @@ data class AppPreferences(
     val defaultStrictness: FocusStrictness = FocusStrictness.STANDARD,
     val focusDisplayEnabled: Boolean = true,
     val onboardingComplete: Boolean = false,
+    val premiumCached: Boolean = false,
     val postureReminderMinutes: Int = 30,
     val postureReminderEnabled: Boolean = false,
     val weeklySessionGoal: Int = 5,
@@ -36,6 +37,7 @@ class UserPreferences(private val context: Context) {
         val defaultStrictness = stringPreferencesKey("default_strictness")
         val focusDisplayEnabled = booleanPreferencesKey("focus_display_enabled")
         val onboardingComplete = booleanPreferencesKey("onboarding_complete")
+        val premiumCached = booleanPreferencesKey("premium_cached")
         val postureReminder = intPreferencesKey("posture_reminder_minutes")
         val postureEnabled = booleanPreferencesKey("posture_reminder_enabled")
         val weeklySessionGoal = intPreferencesKey("weekly_session_goal")
@@ -62,6 +64,10 @@ class UserPreferences(private val context: Context) {
 
     suspend fun setOnboardingComplete(complete: Boolean = true) {
         context.focusSenseDataStore.edit { it[Keys.onboardingComplete] = complete }
+    }
+
+    suspend fun setPremiumCached(premium: Boolean) {
+        context.focusSenseDataStore.edit { it[Keys.premiumCached] = premium }
     }
 
     suspend fun setPostureReminder(enabled: Boolean, minutes: Int) {
@@ -101,6 +107,7 @@ class UserPreferences(private val context: Context) {
         defaultStrictness = FocusStrictness.fromKey(this[Keys.defaultStrictness]),
         focusDisplayEnabled = this[Keys.focusDisplayEnabled] ?: true,
         onboardingComplete = this[Keys.onboardingComplete] ?: false,
+        premiumCached = this[Keys.premiumCached] ?: false,
         postureReminderMinutes = this[Keys.postureReminder] ?: 30,
         postureReminderEnabled = this[Keys.postureEnabled] ?: false,
         weeklySessionGoal = this[Keys.weeklySessionGoal] ?: 5,
