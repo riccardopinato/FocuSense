@@ -1,13 +1,66 @@
 package com.utilitylab.focussense
 
-import com.utilitylab.focussense.domain.*
-import org.junit.Assert.*
+import com.utilitylab.focussense.domain.FocusScoreEngine
+import com.utilitylab.focussense.domain.FocusTargets
+import com.utilitylab.focussense.domain.FocusWeights
+import com.utilitylab.focussense.domain.SensorAvailability
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class FocusScoreEngineTest {
-    @Test fun perfectConditionsAreHigh(){ val s=FocusScoreEngine.liveScore(-65f,500f,5f,availability=SensorAvailability(true,true,true,true)); assertTrue(s>=95) }
-    @Test fun unavailableSensorIsNotPenalized(){ val a=SensorAvailability(true,false,true,false); val s=FocusScoreEngine.liveScore(-65f,0f,5f,availability=a); assertTrue(s>=95) }
-    @Test fun weightsAreRenormalizedOverAvailableSensors(){ val b=FocusScoreEngine.liveBreakdown(-65f,0f,5f,availability=SensorAvailability(true,false,true,false),weights=FocusWeights(.6f,.3f,.1f)); assertEquals(1f,b.effectiveWeights.noise+b.effectiveWeights.light+b.effectiveWeights.motion,.0001f); assertEquals(0f,b.effectiveWeights.light,.0001f) }
-    @Test fun customMotionTargetChangesScore(){ val strict=FocusScoreEngine.liveScore(-65f,500f,25f,targets=FocusTargets(stableMotionIndex=10f)); val tolerant=FocusScoreEngine.liveScore(-65f,500f,25f,targets=FocusTargets(stableMotionIndex=30f)); assertTrue(tolerant>strict) }
-    @Test fun noUsableSensorsReturnsZero(){ assertEquals(0,FocusScoreEngine.liveScore(-50f,500f,10f,availability=SensorAvailability(false,false,false,false))) }
+    @Test
+    fun perfectEnvironmentIsHigh() {
+        val score = FocusScoreEngine.liveScore(
+            noiseDbfs = -65f,
+            lightLux = 500f,
+            motionIndex = 95f,
+            availability = SensorAvailability(true, true, true, true)
+        )
+        assertTrue(score >= 95)
+    }
+
+    @Test
+    fun unavailableLightRenormalizesToNoise() {
+        val breakdown = FocusScoreEngine.liveBreakdown(
+            noiseDbfs = -65f,
+            lightLux = 0f,
+            motionIndex = 90f,
+            availability = SensorAvailability(true, false, true, false),
+            weights = FocusWeights(.6f, .3f, .1f)
+        )
+
+        assertTrue(breakdown.total >= 95)
+        assertEquals(1f, breakdown.effectiveWeights.noise, .0001f)
+        assertEquals(0f, breakdown.effectiveWeights.light, .0001f)
+        assertEquals(0f, breakdown.effectiveWeights.motion, .0001f)
+    }
+
+    @Test
+    fun movementDoesNotChangeEnvironmentScore() {
+        val targets = FocusTargets(stableMotionIndex = 10f)
+        val stable = FocusScoreEngine.liveScore(-65f, 500f, 2f, targets = targets)
+        val moving = FocusScoreEngine.liveScore(-65f, 500f, 95f, targets = targets)
+
+        assertEquals(stable, moving)
+    }
+
+    @Test
+    fun combinedScoreWeightsIntegrityMoreThanEnvironment() {
+        assertEquals(80, FocusScoreEngine.combinedSessionScore(50, 100))
+        assertEquals(70, FocusScoreEngine.combinedSessionScore(100, 50))
+    }
+
+    @Test
+    fun noUsableEnvironmentSensorsReturnsZero() {
+        assertEquals(
+            0,
+            FocusScoreEngine.liveScore(
+                -50f,
+                500f,
+                10f,
+                availability = SensorAvailability(false, false, true, true)
+            )
+        )
+    }
 }
