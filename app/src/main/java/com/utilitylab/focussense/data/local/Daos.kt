@@ -30,8 +30,6 @@ interface FocusSessionDao {
     @Query("SELECT * FROM focus_sessions WHERE endedAt IS NULL ORDER BY startedAt ASC")
     suspend fun getUnfinished(): List<FocusSessionEntity>
 
-    @Query("DELETE FROM focus_sessions WHERE endedAt IS NULL")
-    suspend fun deleteUnfinished(): Int
 }
 
 @Dao
