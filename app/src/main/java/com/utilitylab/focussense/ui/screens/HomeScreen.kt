@@ -39,6 +39,7 @@ import com.utilitylab.focussense.ui.theme.FocuSenseCyan
 import com.utilitylab.focussense.ui.theme.FocuSenseDanger
 import com.utilitylab.focussense.ui.theme.FocuSenseGreen
 import com.utilitylab.focussense.ui.theme.FocuSensePurple
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 
 @Composable
@@ -76,7 +77,8 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
         Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(
                 "FocuSense",
-                style = MaterialTheme.typography.headlineLarge
+                style = MaterialTheme.typography.headlineLarge,
+                color = FocuSenseText
             )
             Text(
                 "Il tuo ambiente, tradotto in condizioni di focus.",
@@ -90,7 +92,11 @@ fun HomeScreen(vm: MainViewModel, openSession: () -> Unit) {
                 modifier = Modifier.fillMaxWidth(),
                 accent = FocuSenseDanger
             ) {
-                Text("Sessione non avviata", style = MaterialTheme.typography.titleMedium)
+                Text(
+                    "Sessione non avviata",
+                    style = MaterialTheme.typography.titleMedium,
+                    color = FocuSenseText
+                )
                 Text(message, color = FocuSenseTextMuted)
                 NeonOutlineButton(
                     text = "Chiudi",
