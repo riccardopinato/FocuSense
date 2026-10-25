@@ -34,6 +34,7 @@ import com.utilitylab.focussense.ui.components.SessionDetailDialog
 import com.utilitylab.focussense.ui.theme.FocuSenseCyan
 import com.utilitylab.focussense.ui.theme.FocuSenseDanger
 import com.utilitylab.focussense.ui.theme.FocuSenseGreen
+import com.utilitylab.focussense.ui.theme.FocuSensePurple
 import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 import java.time.Instant
