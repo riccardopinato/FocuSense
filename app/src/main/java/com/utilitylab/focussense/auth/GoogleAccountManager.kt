@@ -38,9 +38,9 @@ class GoogleAccountManager(private val activity: Activity) {
 
         val google = GoogleIdTokenCredential.createFrom(custom.data)
         return GoogleProfile(
-            uniqueId = google.uniqueId,
-            email = google.email.orEmpty(),
-            displayName = google.displayName ?: google.givenName ?: google.email.orEmpty(),
+            uniqueId = google.id,
+            email = google.id,
+            displayName = google.displayName ?: google.givenName ?: google.id,
             photoUri = google.profilePictureUri?.toString()
         )
     }
