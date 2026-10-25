@@ -156,9 +156,9 @@ fun SessionScreen(
 
     if (showRating.value) {
         RatingDialog(
-            onSave = { focus, posture, note ->
+            onSave = { focus, note ->
                 sessionForRating.value?.let {
-                    vm.saveRatings(it, focus, posture, note)
+                    vm.saveRatings(it, focus, null, note)
                 }
                 sessionForRating.value = null
                 showRating.value = false
@@ -390,11 +390,10 @@ private fun DetailedFocusDisplay(
 
 @Composable
 private fun RatingDialog(
-    onSave: (Int, Int, String) -> Unit,
+    onSave: (Int, String) -> Unit,
     onSkip: () -> Unit
 ) {
     val focus = remember { mutableIntStateOf(4) }
-    val posture = remember { mutableIntStateOf(3) }
     val note = remember { mutableStateOf("") }
 
     AlertDialog(
@@ -417,16 +416,6 @@ private fun RatingDialog(
                     valueRange = 1f..5f,
                     steps = 3
                 )
-                Text(
-                    "Postura percepita: ${posture.intValue}/5",
-                    color = FocuSenseTextMuted
-                )
-                Slider(
-                    value = posture.intValue.toFloat(),
-                    onValueChange = { posture.intValue = it.toInt() },
-                    valueRange = 1f..5f,
-                    steps = 3
-                )
                 OutlinedTextField(
                     value = note.value,
                     onValueChange = { note.value = it },
@@ -437,7 +426,7 @@ private fun RatingDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    onSave(focus.intValue, posture.intValue, note.value)
+                    onSave(focus.intValue, note.value)
                 }
             ) {
                 Text("Salva")
