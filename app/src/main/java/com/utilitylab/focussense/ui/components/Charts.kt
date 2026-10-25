@@ -20,6 +20,8 @@ import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.graphics.lerp
 import androidx.compose.ui.unit.dp
 import com.utilitylab.focussense.data.local.FocusSessionEntity
+import com.utilitylab.focussense.ui.theme.FocuSenseText
+import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 import java.time.Instant
 import java.time.ZoneId
 
@@ -130,11 +132,13 @@ fun FocusHeatmap(
         ) {
             Text(
                 "Heatmap settimanale",
-                style = MaterialTheme.typography.titleMedium
+                style = MaterialTheme.typography.titleMedium,
+                color = FocuSenseText
             )
             Text(
                 "Intensità media del Focus Score per fascia oraria",
-                style = MaterialTheme.typography.bodySmall
+                style = MaterialTheme.typography.bodySmall,
+                color = FocuSenseTextMuted
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(3.dp)) {
@@ -166,11 +170,11 @@ fun FocusHeatmap(
                 Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween
             ) {
-                Text("00", style = MaterialTheme.typography.labelSmall)
-                Text("06", style = MaterialTheme.typography.labelSmall)
-                Text("12", style = MaterialTheme.typography.labelSmall)
-                Text("18", style = MaterialTheme.typography.labelSmall)
-                Text("23", style = MaterialTheme.typography.labelSmall)
+                Text("00", style = MaterialTheme.typography.labelSmall, color = FocuSenseTextMuted)
+                Text("06", style = MaterialTheme.typography.labelSmall, color = FocuSenseTextMuted)
+                Text("12", style = MaterialTheme.typography.labelSmall, color = FocuSenseTextMuted)
+                Text("18", style = MaterialTheme.typography.labelSmall, color = FocuSenseTextMuted)
+                Text("23", style = MaterialTheme.typography.labelSmall, color = FocuSenseTextMuted)
             }
         }
     }

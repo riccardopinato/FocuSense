@@ -35,6 +35,7 @@ import com.utilitylab.focussense.ui.components.NeonSectionHeader
 import com.utilitylab.focussense.ui.theme.FocuSenseCyan
 import com.utilitylab.focussense.ui.theme.FocuSenseGreen
 import com.utilitylab.focussense.ui.theme.FocuSensePurple
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 import kotlinx.coroutines.launch
 
@@ -69,7 +70,8 @@ fun ProfileScreen(vm: MainViewModel) {
             if (prefs.signedIn) {
                 Text(
                     prefs.googleDisplayName.ifBlank { "Account Google" },
-                    style = MaterialTheme.typography.titleLarge
+                    style = MaterialTheme.typography.titleLarge,
+                    color = FocuSenseText
                 )
                 Text(prefs.googleEmail, color = FocuSenseTextMuted)
                 NeonOutlineButton(
@@ -84,7 +86,7 @@ fun ProfileScreen(vm: MainViewModel) {
                     }
                 )
             } else {
-                Text("Account Google", style = MaterialTheme.typography.titleLarge)
+                Text("Account Google", style = MaterialTheme.typography.titleLarge, color = FocuSenseText)
                 Text(
                     "Opzionale: associa il profilo all'app. Il backup Android può trasferire dati e preferenze, senza sync realtime.",
                     color = FocuSenseTextMuted

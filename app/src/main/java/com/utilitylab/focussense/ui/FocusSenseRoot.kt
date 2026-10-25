@@ -68,6 +68,7 @@ fun FocusSenseRoot(vm: MainViewModel = viewModel()) {
     FocuSenseBackdrop {
         Scaffold(
             containerColor = Color.Transparent,
+            contentColor = FocuSenseTextMuted,
             bottomBar = {
                 if (route != "session") {
                     FocuSenseBottomBar(

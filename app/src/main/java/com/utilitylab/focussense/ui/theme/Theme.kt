@@ -23,23 +23,24 @@ val FocuSenseDanger = Color(0xFFFF6F8E)
 
 private val FocuSenseColors = darkColorScheme(
     primary = FocuSenseCyan,
-    onPrimary = Color(0xFF00141B),
+    onPrimary = FocuSenseText,
     primaryContainer = Color(0xFF083659),
     onPrimaryContainer = FocuSenseText,
     secondary = FocuSenseGreen,
-    onSecondary = Color(0xFF002114),
+    onSecondary = FocuSenseText,
     secondaryContainer = Color(0xFF073D35),
     onSecondaryContainer = FocuSenseText,
     tertiary = FocuSensePurple,
-    onTertiary = Color.White,
+    onTertiary = FocuSenseText,
     background = FocuSenseNavy,
-    onBackground = FocuSenseText,
+    onBackground = FocuSenseTextMuted,
     surface = FocuSenseNavySoft,
-    onSurface = FocuSenseText,
+    onSurface = FocuSenseTextMuted,
     surfaceVariant = FocuSenseCardBottom,
     onSurfaceVariant = FocuSenseTextMuted,
     outline = FocuSenseOutline,
-    error = FocuSenseDanger
+    error = FocuSenseDanger,
+    onError = FocuSenseText
 )
 
 private val BaseTypography = Typography()

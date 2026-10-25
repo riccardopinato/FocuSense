@@ -14,6 +14,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.content.ContextCompat
+import com.utilitylab.focussense.ui.theme.FocuSenseText
 
 fun hasCorePermissions(context: android.content.Context): Boolean =
     ContextCompat.checkSelfPermission(
@@ -49,7 +50,7 @@ fun PermissionAwareStartButton(
     if (explain.value) {
         AlertDialog(
             onDismissRequest = { explain.value = false },
-            title = { Text("Permesso microfono") },
+            title = { Text("Permesso microfono", color = FocuSenseText) },
             text = {
                 Text(
                     "FocuSense usa il microfono soltanto per stimare il livello sonoro relativo. " +
