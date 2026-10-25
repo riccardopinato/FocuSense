@@ -6,26 +6,41 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.material3.Button
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
+import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.utilitylab.focussense.ui.MainViewModel
+import com.utilitylab.focussense.ui.components.FocusScoreRing
+import com.utilitylab.focussense.ui.components.NeonCard
+import com.utilitylab.focussense.ui.components.NeonMetricCard
+import com.utilitylab.focussense.ui.components.NeonOutlineButton
+import com.utilitylab.focussense.ui.components.NeonPrimaryButton
+import com.utilitylab.focussense.ui.components.NeonSectionHeader
+import com.utilitylab.focussense.ui.theme.FocuSenseCyan
+import com.utilitylab.focussense.ui.theme.FocuSenseDanger
+import com.utilitylab.focussense.ui.theme.FocuSenseGreen
+import com.utilitylab.focussense.ui.theme.FocuSensePurple
+import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 
 @Composable
 fun SessionScreen(vm: MainViewModel, activeSessionId: Long?, close: () -> Unit) {
     val live by vm.live.collectAsStateWithLifecycle()
+    val match by vm.environmentMatch.collectAsStateWithLifecycle()
     val error by vm.sessionError.collectAsStateWithLifecycle()
     val context = LocalContext.current
     val sessionForRating = remember { mutableStateOf<Long?>(activeSessionId) }
@@ -35,87 +50,123 @@ fun SessionScreen(vm: MainViewModel, activeSessionId: Long?, close: () -> Unit) 
         when {
             error != null -> showRating.value = false
             activeSessionId != null -> sessionForRating.value = activeSessionId
-            sessionForRating.value != null -> {
-                // Funziona sia con stop manuale sia con stop automatico alla fine della durata.
-                showRating.value = true
-            }
+            sessionForRating.value != null -> showRating.value = true
         }
     }
 
     Column(
-        Modifier.fillMaxSize().padding(20.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        Text("Sessione live", style = MaterialTheme.typography.headlineLarge)
+        NeonSectionHeader(
+            title = "Sessione live",
+            subtitle = if (activeSessionId != null) "Monitoraggio attivo sul dispositivo" else "Sessione terminata"
+        )
 
         if (error != null && activeSessionId == null) {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Sessione interrotta", style = MaterialTheme.typography.titleLarge)
-                    Text(error ?: "Errore sconosciuto")
-                    Button(onClick = {
+            NeonCard(
+                modifier = Modifier.fillMaxWidth(),
+                accent = FocuSenseDanger
+            ) {
+                Text("Sessione interrotta", style = MaterialTheme.typography.titleLarge)
+                Text(error ?: "Errore sconosciuto", color = FocuSenseTextMuted)
+                NeonPrimaryButton(
+                    text = "Torna alla Home",
+                    onClick = {
                         vm.clearSessionError()
                         close()
-                    }) { Text("Torna alla Home") }
-                }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                )
             }
             return@Column
         }
 
-        ScoreCard(live.focusScore)
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SensorCard(
-                "Rumore",
-                if (live.sensorsAvailable.microphone) "${live.noiseDbfs.toInt()} dBFS" else "Non disponibile",
-                Modifier.weight(1f)
-            )
-            SensorCard(
-                "Luce",
-                if (live.sensorsAvailable.light) "${live.lightLux.toInt()} lux" else "Non disponibile",
-                Modifier.weight(1f)
-            )
-        }
-        Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.spacedBy(10.dp)) {
-            SensorCard(
-                "Movimento",
-                if (live.sensorsAvailable.accelerometer) "${live.motionIndex.toInt()}/100" else "Non disponibile",
-                Modifier.weight(1f)
-            )
-            SensorCard(
-                "Stabilità",
-                when {
-                    !live.sensorsAvailable.accelerometer -> "Non disponibile"
-                    live.deviceStable -> "Stabile"
-                    else -> "In movimento"
-                },
-                Modifier.weight(1f)
+        Column(
+            Modifier.fillMaxWidth(),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            FocusScoreRing(
+                score = live.focusScore,
+                title = "Focus live",
+                subtitle = match.score?.let { "Ambiente $it% allineato" } ?: "Sensori in ascolto"
             )
         }
 
-        if (live.sensorsAvailable.light && live.lightLux < 150f) {
-            Text(
-                "Luce bassa: prova ad aumentare l'illuminazione.",
-                style = MaterialTheme.typography.bodyMedium
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            NeonMetricCard(
+                "Rumore",
+                if (live.sensorsAvailable.microphone) "${live.noiseDbfs.toInt()} dBFS" else "N/D",
+                Modifier.weight(1f),
+                accent = FocuSenseCyan
             )
-        } else {
-            Text("Ambiente monitorato in locale.", style = MaterialTheme.typography.bodyMedium)
+            NeonMetricCard(
+                "Luce",
+                if (live.sensorsAvailable.light) "${live.lightLux.toInt()} lux" else "N/D",
+                Modifier.weight(1f),
+                accent = FocuSenseGreen
+            )
+            NeonMetricCard(
+                "Movimento",
+                if (live.sensorsAvailable.accelerometer) "${live.motionIndex.toInt()}" else "N/D",
+                Modifier.weight(1f),
+                accent = FocuSensePurple
+            )
+        }
+
+        NeonCard(
+            modifier = Modifier.fillMaxWidth(),
+            accent = if (live.deviceStable) FocuSenseGreen else FocuSensePurple
+        ) {
+            Row(
+                Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text("Stato dispositivo", color = FocuSenseTextMuted)
+                Text(
+                    when {
+                        !live.sensorsAvailable.accelerometer -> "Sensore non disponibile"
+                        live.deviceStable -> "Stabile"
+                        else -> "In movimento"
+                    },
+                    color = if (live.deviceStable) FocuSenseGreen else FocuSensePurple
+                )
+            }
+            Text(
+                when {
+                    live.sensorsAvailable.light && live.lightLux < 150f ->
+                        "La luce è bassa rispetto a un ambiente ben illuminato."
+                    else -> "I dati rimangono sul dispositivo durante il monitoraggio."
+                },
+                style = MaterialTheme.typography.bodySmall,
+                color = FocuSenseTextMuted
+            )
         }
 
         Text(
             "Il valore audio è relativo (dBFS), non è una misura fonica certificata.",
-            style = MaterialTheme.typography.bodySmall
-        )
-        Text(
-            "La sessione termina automaticamente alla durata impostata, oppure puoi fermarla prima.",
-            style = MaterialTheme.typography.bodySmall
+            style = MaterialTheme.typography.bodySmall,
+            color = FocuSenseTextMuted
         )
 
         if (activeSessionId != null) {
-            Button(onClick = { vm.stopSession(context) }) {
-                Text("Termina sessione")
-            }
+            NeonPrimaryButton(
+                text = "Termina sessione",
+                subtitle = "Salva il riepilogo e passa alla valutazione",
+                onClick = { vm.stopSession(context) },
+                modifier = Modifier.fillMaxWidth()
+            )
         } else if (!showRating.value) {
-            OutlinedButton(onClick = close) { Text("Torna alla Home") }
+            NeonOutlineButton(
+                text = "Torna alla Home",
+                onClick = close,
+                modifier = Modifier.fillMaxWidth()
+            )
         }
     }
 
@@ -137,27 +188,6 @@ fun SessionScreen(vm: MainViewModel, activeSessionId: Long?, close: () -> Unit) 
 }
 
 @Composable
-private fun ScoreCard(score: Int) {
-    Card(Modifier.fillMaxWidth()) {
-        Column(Modifier.padding(20.dp)) {
-            Text("Focus Score", style = MaterialTheme.typography.titleMedium)
-            Text("$score/100", style = MaterialTheme.typography.displayMedium)
-            Text("Indice indicativo basato sui sensori effettivamente disponibili.")
-        }
-    }
-}
-
-@Composable
-private fun SensorCard(title: String, value: String, modifier: Modifier = Modifier) {
-    Card(modifier) {
-        Column(Modifier.padding(14.dp)) {
-            Text(title, style = MaterialTheme.typography.labelLarge)
-            Text(value, style = MaterialTheme.typography.titleLarge)
-        }
-    }
-}
-
-@Composable
 private fun RatingDialog(onSave: (Int, Int, String) -> Unit, onSkip: () -> Unit) {
     val focus = remember { mutableIntStateOf(4) }
     val posture = remember { mutableIntStateOf(3) }
@@ -169,20 +199,20 @@ private fun RatingDialog(onSave: (Int, Int, String) -> Unit, onSkip: () -> Unit)
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 Text("Focus percepito: ${focus.intValue}/5")
-                androidx.compose.material3.Slider(
+                Slider(
                     value = focus.intValue.toFloat(),
                     onValueChange = { focus.intValue = it.toInt() },
                     valueRange = 1f..5f,
                     steps = 3
                 )
                 Text("Postura percepita: ${posture.intValue}/5")
-                androidx.compose.material3.Slider(
+                Slider(
                     value = posture.intValue.toFloat(),
                     onValueChange = { posture.intValue = it.toInt() },
                     valueRange = 1f..5f,
                     steps = 3
                 )
-                androidx.compose.material3.OutlinedTextField(
+                OutlinedTextField(
                     value = note.value,
                     onValueChange = { note.value = it },
                     label = { Text("Nota facoltativa") }
@@ -195,7 +225,7 @@ private fun RatingDialog(onSave: (Int, Int, String) -> Unit, onSkip: () -> Unit)
             }
         },
         dismissButton = {
-            androidx.compose.material3.TextButton(onClick = onSkip) { Text("Salta") }
+            TextButton(onClick = onSkip) { Text("Salta") }
         }
     )
 }

@@ -7,14 +7,12 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.weight
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
-import androidx.compose.material3.Card
-import androidx.compose.material3.FilterChip
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -27,7 +25,14 @@ import com.utilitylab.focussense.data.local.FocusSessionEntity
 import com.utilitylab.focussense.domain.SessionContext
 import com.utilitylab.focussense.domain.SessionTagCodec
 import com.utilitylab.focussense.ui.MainViewModel
+import com.utilitylab.focussense.ui.components.NeonCard
+import com.utilitylab.focussense.ui.components.NeonPill
+import com.utilitylab.focussense.ui.components.NeonSectionHeader
 import com.utilitylab.focussense.ui.components.SessionDetailDialog
+import com.utilitylab.focussense.ui.theme.FocuSenseCyan
+import com.utilitylab.focussense.ui.theme.FocuSenseDanger
+import com.utilitylab.focussense.ui.theme.FocuSenseGreen
+import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -56,65 +61,74 @@ fun HistoryScreen(vm: MainViewModel) {
         }
     }
 
-    Column(Modifier.fillMaxSize().padding(horizontal = 20.dp)) {
-        Text(
-            "Storico",
-            style = MaterialTheme.typography.headlineLarge,
-            modifier = Modifier.padding(vertical = 18.dp)
+    Column(
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp, vertical = 14.dp),
+        verticalArrangement = Arrangement.spacedBy(10.dp)
+    ) {
+        NeonSectionHeader(
+            title = "Storico",
+            subtitle = "${sessions.size} sessioni salvate"
         )
 
         LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
             item {
-                FilterChip(
+                NeonPill(
+                    text = "Tutti",
                     selected = contextFilter == null,
-                    onClick = { contextFilter = null },
-                    label = { Text("Tutti") }
+                    onClick = { contextFilter = null }
                 )
             }
             items(SessionContext.entries) { item ->
-                FilterChip(
+                NeonPill(
+                    text = item.label,
                     selected = contextFilter == item,
-                    onClick = { contextFilter = item },
-                    label = { Text(item.label) }
+                    onClick = { contextFilter = item }
                 )
             }
         }
 
         if (allTags.isNotEmpty()) {
-            LazyRow(
-                modifier = Modifier.padding(top = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
+            LazyRow(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 item {
-                    FilterChip(
+                    NeonPill(
+                        text = "Qualsiasi tag",
                         selected = tagFilter == null,
                         onClick = { tagFilter = null },
-                        label = { Text("Qualsiasi tag") }
+                        accent = FocuSenseGreen
                     )
                 }
                 items(allTags) { tag ->
-                    FilterChip(
+                    NeonPill(
+                        text = "#$tag",
                         selected = tagFilter.equals(tag, ignoreCase = true),
                         onClick = { tagFilter = tag },
-                        label = { Text("#$tag") }
+                        accent = FocuSenseGreen
                     )
                 }
             }
         }
 
         if (contextFilter != null || tagFilter != null) {
-            TextButton(
-                onClick = {
+            Text(
+                "Azzera filtri",
+                modifier = Modifier.clickable {
                     contextFilter = null
                     tagFilter = null
-                }
-            ) { Text("Azzera filtri") }
+                },
+                color = FocuSenseCyan,
+                style = MaterialTheme.typography.labelLarge
+            )
         }
 
         when {
-            sessions.isEmpty() -> Text("Nessuna sessione salvata.")
-            filtered.isEmpty() -> Text("Nessuna sessione corrisponde ai filtri.")
-            else -> LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+            sessions.isEmpty() -> Text("Nessuna sessione salvata.", color = FocuSenseTextMuted)
+            filtered.isEmpty() -> Text("Nessuna sessione corrisponde ai filtri.", color = FocuSenseTextMuted)
+            else -> LazyColumn(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(10.dp)
+            ) {
                 items(filtered, key = { it.id }) { session ->
                     HistoryCard(
                         session = session,
@@ -147,59 +161,65 @@ private fun HistoryCard(
     val sessionContext = SessionContext.fromKey(session.contextKey)
     val tags = SessionTagCodec.decode(session.tagsCsv)
 
-    Card(
-        Modifier
+    NeonCard(
+        modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onOpen)
+            .clickable(onClick = onOpen),
+        accent = if ((session.focusScore ?: 0) >= 75) FocuSenseGreen else FocuSenseCyan
     ) {
-        Column(
-            Modifier.padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            Text(sessionContext.label, style = MaterialTheme.typography.labelLarge)
-            if (tags.isNotEmpty()) {
-                Text(
-                    tags.joinToString(" · ") { "#$it" },
-                    style = MaterialTheme.typography.bodySmall
-                )
+            Column {
+                Text(sessionContext.label, style = MaterialTheme.typography.titleMedium)
+                Text(date, style = MaterialTheme.typography.bodySmall, color = FocuSenseTextMuted)
             }
-            Row(
-                Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween
-            ) {
-                Text(date, style = MaterialTheme.typography.titleMedium)
-                Text(
-                    "${session.focusScore ?: "—"}/100",
-                    style = MaterialTheme.typography.titleLarge
-                )
-            }
-
             Text(
-                "Durata ${session.actualDurationSeconds / 60} min" +
-                    (session.avgLightLux?.let { " · Luce ${it.toInt()} lux" } ?: "")
+                "${session.focusScore ?: "—"}/100",
+                style = MaterialTheme.typography.titleLarge,
+                color = FocuSenseCyan
             )
+        }
 
-            val metrics = buildList {
-                session.avgNoiseDbfs?.let { add("Rumore ${it.toInt()} dBFS") }
-                session.stablePercent?.let { add("Stabilità ${it.toInt()}%") }
-            }
-            if (metrics.isNotEmpty()) Text(metrics.joinToString(" · "))
+        if (tags.isNotEmpty()) {
+            Text(
+                tags.joinToString(" · ") { "#$it" },
+                style = MaterialTheme.typography.bodySmall,
+                color = FocuSenseGreen
+            )
+        }
 
-            if (session.selfFocusRating != null || session.postureRating != null) {
-                Text(
-                    "Focus percepito ${session.selfFocusRating ?: "—"}/5 · " +
-                        "Postura ${session.postureRating ?: "—"}/5"
-                )
-            }
+        Text(
+            "Durata ${session.actualDurationSeconds / 60} min" +
+                (session.avgLightLux?.let { " · ${it.toInt()} lux" } ?: ""),
+            color = FocuSenseTextMuted
+        )
 
-            if (session.note.isNotBlank()) {
-                Text(session.note, style = MaterialTheme.typography.bodySmall)
-            }
+        val metrics = buildList {
+            session.avgNoiseDbfs?.let { add("${it.toInt()} dBFS") }
+            session.stablePercent?.let { add("Stabilità ${it.toInt()}%") }
+        }
+        if (metrics.isNotEmpty()) {
+            Text(metrics.joinToString(" · "), color = FocuSenseTextMuted)
+        }
 
-            Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
-                TextButton(onClick = onOpen) { Text("Dettagli") }
-                TextButton(onClick = onDelete) { Text("Elimina") }
-            }
+        Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween
+        ) {
+            Text(
+                "Dettagli",
+                modifier = Modifier.clickable(onClick = onOpen),
+                color = FocuSenseCyan,
+                style = MaterialTheme.typography.labelLarge
+            )
+            Text(
+                "Elimina",
+                modifier = Modifier.clickable(onClick = onDelete),
+                color = FocuSenseDanger,
+                style = MaterialTheme.typography.labelLarge
+            )
         }
     }
 }

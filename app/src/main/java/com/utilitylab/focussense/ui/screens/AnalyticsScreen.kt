@@ -9,7 +9,6 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.material3.Card
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -22,7 +21,13 @@ import com.utilitylab.focussense.domain.DayPart
 import com.utilitylab.focussense.ui.MainViewModel
 import com.utilitylab.focussense.ui.components.CalibrationCard
 import com.utilitylab.focussense.ui.components.FocusTrendChart
+import com.utilitylab.focussense.ui.components.NeonCard
+import com.utilitylab.focussense.ui.components.NeonSectionHeader
 import com.utilitylab.focussense.ui.components.TemporalHeatmap
+import com.utilitylab.focussense.ui.theme.FocuSenseCyan
+import com.utilitylab.focussense.ui.theme.FocuSenseGreen
+import com.utilitylab.focussense.ui.theme.FocuSensePurple
+import com.utilitylab.focussense.ui.theme.FocuSenseTextMuted
 
 @Composable
 fun AnalyticsScreen(
@@ -43,58 +48,106 @@ fun AnalyticsScreen(
         ?.toInt()
 
     LazyColumn(
-        Modifier.fillMaxSize().padding(20.dp),
+        Modifier
+            .fillMaxSize()
+            .padding(horizontal = 18.dp, vertical = 14.dp),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
-        item { Text("Analisi", style = MaterialTheme.typography.headlineLarge) }
+        item {
+            NeonSectionHeader(
+                title = "Analisi",
+                subtitle = "Pattern, trend e condizioni ricorrenti"
+            )
+        }
 
         item {
-            Card(
-                Modifier
+            NeonCard(
+                modifier = Modifier
                     .fillMaxWidth()
-                    .clickable { onOpenBestConditions() }
+                    .clickable { onOpenBestConditions() },
+                accent = FocuSenseGreen
             ) {
-                Column(
-                    Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("Condizioni migliori", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        "Scopri quali combinazioni di ambiente, contesto e orario ricorrono più spesso nelle tue sessioni migliori."
-                    )
-                    Text("Apri analisi", style = MaterialTheme.typography.labelLarge)
-                }
+                Text(
+                    "Condizioni migliori",
+                    style = MaterialTheme.typography.titleLarge,
+                    color = FocuSenseGreen
+                )
+                Text(
+                    "Scopri quali combinazioni di ambiente, contesto e orario ricorrono più spesso nelle tue sessioni migliori.",
+                    color = FocuSenseTextMuted
+                )
+                Text(
+                    "APRI ANALISI →",
+                    style = MaterialTheme.typography.labelLarge,
+                    color = FocuSenseCyan
+                )
             }
         }
 
         item { CalibrationCard(profile) }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(Modifier.padding(18.dp)) {
-                    Text("Focus medio", style = MaterialTheme.typography.titleMedium)
-                    Text(
-                        avg?.let { "$it/100" } ?: "—",
-                        style = MaterialTheme.typography.displaySmall
-                    )
-                    Text(
-                        "Il punteggio descrive le condizioni rilevate dal telefono, non misura direttamente la produttività."
-                    )
-                }
+            NeonCard(
+                modifier = Modifier.fillMaxWidth(),
+                accent = FocuSenseCyan
+            ) {
+                Text("Focus medio", color = FocuSenseTextMuted)
+                Text(
+                    avg?.let { "$it/100" } ?: "—",
+                    style = MaterialTheme.typography.displaySmall,
+                    color = FocuSenseCyan
+                )
+                Text(
+                    "Descrive le condizioni rilevate dal telefono, non misura direttamente la produttività.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = FocuSenseTextMuted
+                )
             }
         }
 
         if (completed.isNotEmpty()) {
             item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(
-                        Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
+                NeonCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = FocuSensePurple
+                ) {
+                    NeonSectionHeader(
+                        title = "Trend sessioni",
+                        subtitle = "Evoluzione del Focus Score"
+                    )
+                    FocusTrendChart(
+                        completed.take(20).reversed(),
+                        Modifier
+                            .fillMaxWidth()
+                            .height(230.dp)
+                    )
+                }
+            }
+        }
+
+        item {
+            NeonCard(
+                modifier = Modifier.fillMaxWidth(),
+                accent = FocuSenseGreen
+            ) {
+                NeonSectionHeader(title = "Focus per contesto")
+                contexts.buckets.forEach { bucket ->
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Trend sessioni", style = MaterialTheme.typography.titleLarge)
-                        FocusTrendChart(
-                            completed.take(20).reversed(),
-                            Modifier.fillMaxWidth().height(240.dp)
+                        Column {
+                            Text(bucket.context.label, style = MaterialTheme.typography.titleSmall)
+                            Text(
+                                "${bucket.sessions} sessioni",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = FocuSenseTextMuted
+                            )
+                        }
+                        Text(
+                            bucket.averageFocusScore?.let { "$it/100" } ?: "—",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = FocuSenseGreen
                         )
                     }
                 }
@@ -102,135 +155,102 @@ fun AnalyticsScreen(
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Focus per contesto", style = MaterialTheme.typography.titleLarge)
-                    contexts.buckets.forEach { bucket ->
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(bucket.context.label, style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    "${bucket.sessions} sessioni",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
+            NeonCard(
+                modifier = Modifier.fillMaxWidth(),
+                accent = FocuSenseCyan
+            ) {
+                NeonSectionHeader(title = "Focus per fascia oraria")
+                DayPart.entries.forEach { part ->
+                    val bucket = temporal.byDayPart[part]
+                    Row(
+                        Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column {
+                            Text(part.label, style = MaterialTheme.typography.titleSmall)
                             Text(
-                                bucket.averageFocusScore?.let { "$it/100" } ?: "—",
-                                style = MaterialTheme.typography.titleMedium
+                                "${bucket?.sessions ?: 0} sessioni",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = FocuSenseTextMuted
                             )
                         }
+                        Text(
+                            bucket?.averageFocusScore?.let { "$it/100" } ?: "—",
+                            style = MaterialTheme.typography.titleMedium,
+                            color = FocuSenseCyan
+                        )
                     }
                 }
             }
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Focus per fascia oraria", style = MaterialTheme.typography.titleLarge)
-                    DayPart.entries.forEach { part ->
-                        val b = temporal.byDayPart[part]
-                        Row(
-                            Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Column {
-                                Text(part.label, style = MaterialTheme.typography.titleSmall)
-                                Text(
-                                    "${b?.sessions ?: 0} sessioni",
-                                    style = MaterialTheme.typography.bodySmall
-                                )
-                            }
-                            Text(
-                                b?.averageFocusScore?.let { "$it/100" } ?: "—",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
-                ) {
-                    Text("Heatmap settimanale", style = MaterialTheme.typography.titleLarge)
-                    TemporalHeatmap(temporal.heatmap, Modifier.fillMaxWidth())
-                }
+            NeonCard(
+                modifier = Modifier.fillMaxWidth(),
+                accent = FocuSensePurple
+            ) {
+                NeonSectionHeader(
+                    title = "Heatmap settimanale",
+                    subtitle = "Quando le condizioni sono state migliori"
+                )
+                TemporalHeatmap(temporal.heatmap, Modifier.fillMaxWidth())
             }
         }
 
         temporal.recentTrend?.let { trend ->
             item {
-                Card(Modifier.fillMaxWidth()) {
-                    Column(
-                        Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(5.dp)
-                    ) {
-                        Text("Ultime 7 vs precedenti 7", style = MaterialTheme.typography.titleLarge)
-                        Text(
-                            "${trend.recentAverage}/100 vs ${trend.previousAverage}/100",
-                            style = MaterialTheme.typography.headlineSmall
-                        )
-                        val prefix = if (trend.delta > 0) "+" else ""
-                        Text("$prefix${trend.delta} punti")
+                NeonCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = if (trend.delta >= 0) FocuSenseGreen else FocuSensePurple
+                ) {
+                    NeonSectionHeader(title = "Ultime 7 vs precedenti 7")
+                    Text(
+                        "${trend.recentAverage}/100 vs ${trend.previousAverage}/100",
+                        style = MaterialTheme.typography.headlineSmall
+                    )
+                    val prefix = if (trend.delta > 0) "+" else ""
+                    Text(
+                        "$prefix${trend.delta} punti",
+                        color = if (trend.delta >= 0) FocuSenseGreen else FocuSensePurple
+                    )
+                }
+            }
+        }
+
+        if (contexts.messages.isNotEmpty()) {
+            item {
+                NeonCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = FocuSenseGreen
+                ) {
+                    NeonSectionHeader(title = "Pattern per attività")
+                    contexts.messages.forEach {
+                        Text("• $it", color = FocuSenseTextMuted)
+                    }
+                }
+            }
+        }
+
+        if (temporal.messages.isNotEmpty()) {
+            item {
+                NeonCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    accent = FocuSenseCyan
+                ) {
+                    NeonSectionHeader(title = "Pattern temporali")
+                    temporal.messages.forEach {
+                        Text("• $it", color = FocuSenseTextMuted)
                     }
                 }
             }
         }
 
         item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Pattern per attività", style = MaterialTheme.typography.titleLarge)
-                    contexts.messages.forEach { Text("• $it") }
-                }
-            }
-        }
-
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    Text("Pattern temporali", style = MaterialTheme.typography.titleLarge)
-                    temporal.messages.forEach { Text("• $it") }
-                }
-            }
-        }
-
-        item {
-            Card(Modifier.fillMaxWidth()) {
-                Column(
-                    Modifier.padding(18.dp),
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
-                ) {
-                    Text("Come leggere questi dati", style = MaterialTheme.typography.titleLarge)
-                    Text(
-                        "I confronti descrivono ciò che è successo nelle tue sessioni. " +
-                            "FocuSense evita conclusioni con campioni insufficienti e non interpreta le associazioni come prova di causalità."
-                    )
-                    Text(
-                        "La calibrazione personale usa le sessioni che valuti 4-5/5; gli insight temporali e contestuali riassumono lo storico completato."
-                    )
-                }
-            }
+            Text(
+                "I confronti descrivono lo storico personale. FocuSense non interpreta le associazioni come prova di causalità.",
+                style = MaterialTheme.typography.bodySmall,
+                color = FocuSenseTextMuted
+            )
         }
     }
 }
