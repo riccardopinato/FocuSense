@@ -7,6 +7,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
+import com.utilitylab.focussense.domain.FocusStrictness
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 
@@ -14,8 +15,11 @@ private val Context.focusSenseDataStore by preferencesDataStore(name = "focus_se
 
 data class AppPreferences(
     val defaultSessionMinutes: Int = 50,
+    val defaultStrictness: FocusStrictness = FocusStrictness.STANDARD,
+    val focusDisplayEnabled: Boolean = true,
+    val onboardingComplete: Boolean = false,
     val postureReminderMinutes: Int = 30,
-    val postureReminderEnabled: Boolean = true,
+    val postureReminderEnabled: Boolean = false,
     val weeklySessionGoal: Int = 5,
     val weeklyMinuteGoal: Int = 150,
     val googleUniqueId: String = "",
@@ -29,6 +33,9 @@ data class AppPreferences(
 class UserPreferences(private val context: Context) {
     private object Keys {
         val defaultSession = intPreferencesKey("default_session_minutes")
+        val defaultStrictness = stringPreferencesKey("default_strictness")
+        val focusDisplayEnabled = booleanPreferencesKey("focus_display_enabled")
+        val onboardingComplete = booleanPreferencesKey("onboarding_complete")
         val postureReminder = intPreferencesKey("posture_reminder_minutes")
         val postureEnabled = booleanPreferencesKey("posture_reminder_enabled")
         val weeklySessionGoal = intPreferencesKey("weekly_session_goal")
@@ -43,6 +50,18 @@ class UserPreferences(private val context: Context) {
 
     suspend fun setDefaultSessionMinutes(value: Int) {
         context.focusSenseDataStore.edit { it[Keys.defaultSession] = value.coerceIn(5, 180) }
+    }
+
+    suspend fun setDefaultStrictness(value: FocusStrictness) {
+        context.focusSenseDataStore.edit { it[Keys.defaultStrictness] = value.name }
+    }
+
+    suspend fun setFocusDisplayEnabled(enabled: Boolean) {
+        context.focusSenseDataStore.edit { it[Keys.focusDisplayEnabled] = enabled }
+    }
+
+    suspend fun setOnboardingComplete(complete: Boolean = true) {
+        context.focusSenseDataStore.edit { it[Keys.onboardingComplete] = complete }
     }
 
     suspend fun setPostureReminder(enabled: Boolean, minutes: Int) {
@@ -79,8 +98,11 @@ class UserPreferences(private val context: Context) {
 
     private fun Preferences.toModel() = AppPreferences(
         defaultSessionMinutes = this[Keys.defaultSession] ?: 50,
+        defaultStrictness = FocusStrictness.fromKey(this[Keys.defaultStrictness]),
+        focusDisplayEnabled = this[Keys.focusDisplayEnabled] ?: true,
+        onboardingComplete = this[Keys.onboardingComplete] ?: false,
         postureReminderMinutes = this[Keys.postureReminder] ?: 30,
-        postureReminderEnabled = this[Keys.postureEnabled] ?: true,
+        postureReminderEnabled = this[Keys.postureEnabled] ?: false,
         weeklySessionGoal = this[Keys.weeklySessionGoal] ?: 5,
         weeklyMinuteGoal = this[Keys.weeklyMinuteGoal] ?: 150,
         googleUniqueId = this[Keys.googleUniqueId].orEmpty(),
