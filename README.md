@@ -124,3 +124,8 @@ CI green non certifica:
 - Play Billing sandbox.
 
 Queste capability richiedono validazione sullo stesso artifact firmato.
+
+
+## Template Notion — ricerca
+
+[Apri il catalogo Notion](docs/TEMPLATE_NOTION/README.md) (nessuna funzionalità dell'app attivata).
